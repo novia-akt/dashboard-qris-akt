@@ -338,9 +338,6 @@ function renderDashboard(s, hourly, merchants) {
     `Merchant aktif: ${numFmt(s.total_merchant)} | Avg trx: ${rpS(s.avg_trx_value)}`;
   document.getElementById('analysisBox').style.display = 'block';
 
-  show('mainDash');
-}
-
   // Show download buttons
   document.getElementById('btnPdf').style.display = 'inline-flex';
   document.getElementById('btnXls').style.display = 'inline-flex';
