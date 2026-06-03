@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Daily QRIS Transaction Dashboard — AKT</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -90,6 +92,8 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var
         <option value="">Memuat...</option>
       </select>
     </div>
+    <button class="btn btn-ghost" id="btnXls" onclick="dlExcel()" style="display:none">↓ Excel</button>
+    <button class="btn btn-primary" id="btnPdf" onclick="dlPDF()" style="display:none">↓ PDF</button>
   </div>
 </header>
 
@@ -241,6 +245,9 @@ async function loadDate(dateISO) {
 }
 
 function renderDashboard(s, hourly, merchants) {
+  window._lastData      = s;
+  window._lastHourly    = hourly;
+  window._lastMerchants = merchants;
   const [y,mo,d] = s.report_date.split('-');
   const dateStr = `${parseInt(d)} ${MONTHS[parseInt(mo)-1]} ${y}`;
 
@@ -332,6 +339,218 @@ function renderDashboard(s, hourly, merchants) {
   document.getElementById('analysisBox').style.display = 'block';
 
   show('mainDash');
+}
+
+  // Show download buttons
+  document.getElementById('btnPdf').style.display = 'inline-flex';
+  document.getElementById('btnXls').style.display = 'inline-flex';
+
+  show('mainDash');
+}
+
+// ============================================================
+// DOWNLOAD PDF
+// ============================================================
+function dlPDF() {
+  const s = window._lastData;
+  if (!s) return;
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+  const W=210, M=14; let y=0;
+
+  // Header
+  doc.setFillColor(27,43,75); doc.rect(0,0,W,24,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont('helvetica','bold');
+  doc.text('Daily QRIS Transaction Dashboard — AKT', W/2, 12, {align:'center'});
+  doc.setFontSize(8); doc.setFont('helvetica','normal');
+  doc.text(document.getElementById('subtitle').textContent, W/2, 20, {align:'center'});
+  y = 30;
+
+  const [yr,mo,d] = s.report_date.split('-');
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const dateStr = `${parseInt(d)} ${MONTHS[parseInt(mo)-1]} ${yr}`;
+  const sr = parseFloat(s.success_rate)||0;
+  const failRate = s.total_trx>0?((s.total_trx_fail/s.total_trx)*100).toFixed(2):'0.00';
+
+  // KPI boxes
+  const kpis = [
+    ['Active Merchant', numFmt(s.total_merchant)],
+    ['Successful Trx',  numFmt(s.total_trx_success)],
+    ['Success Rate',    sr+'%'],
+    ['Total GMV',       rpS(s.gmv)],
+    ['Settled Amount',  rpS(s.settled_amount)],
+    ['Total Revenue',   rpS(s.total_revenue)],
+    ['Avg Transaction', rpS(s.avg_trx_value)],
+    ['Fail Rate',       failRate+'%'],
+  ];
+  const bw = (W-M*2-15)/4;
+  for (let row=0; row<2; row++) {
+    for (let col=0; col<4; col++) {
+      const k = kpis[row*4+col]; if (!k) continue;
+      const x = M + col*(bw+5);
+      doc.setFillColor(241,245,249); doc.roundedRect(x,y,bw,14,2,2,'F');
+      doc.setTextColor(100,116,139); doc.setFontSize(6); doc.setFont('helvetica','normal');
+      doc.text(k[0], x+3, y+5);
+      doc.setTextColor(27,43,75); doc.setFontSize(9); doc.setFont('helvetica','bold');
+      doc.text(k[1], x+3, y+12);
+    }
+    y += 18;
+  }
+  y += 2;
+
+  // Transaction Status
+  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+  doc.text('Transaction Status', M, y); y += 5;
+  [['Status','Count','%'],
+   ['SUCCESS', numFmt(s.total_trx_success), pct(s.total_trx_success,s.total_trx)],
+   ['FAIL',    numFmt(s.total_trx_fail),    pct(s.total_trx_fail,s.total_trx)],
+   ['TOTAL',   numFmt(s.total_trx),         '100.00%']
+  ].forEach((r,ri) => {
+    doc.setFillColor(ri===0?27:ri===3?241:255, ri===0?43:ri===3?245:255, ri===0?75:ri===3?249:255);
+    doc.rect(M, y-3, 90, 6, 'F');
+    doc.setTextColor(ri===0?255:15, ri===0?255:23, ri===0?255:42);
+    doc.setFont('helvetica', ri===0||ri===3?'bold':'normal'); doc.setFontSize(7);
+    doc.text(r[0], M+2, y+1);
+    doc.text(r[1], M+55, y+1, {align:'right'});
+    doc.text(r[2], M+72, y+1, {align:'right'});
+    y += 6;
+  }); y += 4;
+
+  // Revenue Detail
+  const rev = s.revenue_detail || {};
+  if (Object.keys(rev).length) {
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+    doc.text('Revenue Detail per Acquirer', M, y); y += 5;
+    doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('Acquirer', M+2, y+1);
+    doc.text('GMV', M+90, y+1, {align:'right'});
+    doc.text('Settled', M+130, y+1, {align:'right'});
+    doc.text('Revenue', M+178, y+1, {align:'right'});
+    y += 6;
+    let tGMV=0, tSet=0, tRev=0;
+    Object.entries(rev).forEach(([acq,d],i) => {
+      tGMV+=d.gmv||0; tSet+=d.settled||0; tRev+=d.revenue||0;
+      doc.setFillColor(i%2===0?248:255, i%2===0?250:255, i%2===0?252:255);
+      doc.rect(M, y-3, W-M*2, 6, 'F');
+      doc.setTextColor(15,23,42); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+      doc.text(acq, M+2, y+1);
+      doc.text(rpFull(d.gmv), M+90, y+1, {align:'right'});
+      doc.text(rpFull(d.settled), M+130, y+1, {align:'right'});
+      doc.text(rpFull(d.revenue), M+178, y+1, {align:'right'});
+      y += 6;
+    });
+    doc.setFillColor(209,250,229); doc.rect(M, y-3, W-M*2, 6, 'F');
+    doc.setTextColor(6,95,70); doc.setFont('helvetica','bold'); doc.setFontSize(7);
+    doc.text('TOTAL', M+2, y+1);
+    doc.text(rpFull(tGMV), M+90, y+1, {align:'right'});
+    doc.text(rpFull(tSet), M+130, y+1, {align:'right'});
+    doc.text(rpFull(tRev), M+178, y+1, {align:'right'});
+    y += 10;
+  }
+
+  // Top Merchants
+  if (y > 230) { doc.addPage(); y = 20; }
+  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+  doc.text('Top 10 Merchants by Volume', M, y); y += 5;
+  doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
+  doc.text('#', M+2, y+1);
+  doc.text('Merchant', M+10, y+1);
+  doc.text('Trx', M+130, y+1, {align:'right'});
+  doc.text('Volume', M+178, y+1, {align:'right'});
+  y += 6;
+  (window._lastMerchants||[]).forEach((m,i) => {
+    if (y>275) { doc.addPage(); y=20; }
+    doc.setFillColor(i%2===0?248:255, i%2===0?250:255, i%2===0?252:255);
+    doc.rect(M, y-3, W-M*2, 6, 'F');
+    doc.setTextColor(15,23,42); doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    doc.text(String(i+1), M+2, y+1);
+    doc.text((m.merchant_name||'—').slice(0,50), M+10, y+1);
+    doc.text(numFmt(m.total_trx), M+130, y+1, {align:'right'});
+    doc.text(rpFull(m.total_amount), M+178, y+1, {align:'right'});
+    y += 6;
+  });
+
+  // Footer
+  doc.setFillColor(27,43,75); doc.rect(0,284,W,13,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','normal');
+  doc.text(`Auto-generated dashboard — Paycloud × AKT — ${dateStr}`, W/2, 292, {align:'center'});
+
+  doc.save(`Daily_QRIS_Dashboard_AKT_${s.report_date.replace(/-/g,'')}.pdf`);
+}
+
+// ============================================================
+// DOWNLOAD EXCEL
+// ============================================================
+function dlExcel() {
+  const s = window._lastData;
+  if (!s) return;
+  const wb = XLSX.utils.book_new();
+  const [yr,mo,d] = s.report_date.split('-');
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const dateStr = `${parseInt(d)} ${MONTHS[parseInt(mo)-1]} ${yr}`;
+  const sr = parseFloat(s.success_rate)||0;
+  const failRate = s.total_trx>0?((s.total_trx_fail/s.total_trx)*100).toFixed(2):'0.00';
+
+  // Sheet 1: KPI Summary
+  const kpiData = [
+    ['Daily QRIS Dashboard — AKT'],
+    [`Tanggal: ${dateStr}`],
+    [],
+    ['KPI', 'Nilai'],
+    ['Active Merchant',        s.total_merchant],
+    ['Successful Transactions',s.total_trx_success],
+    ['Failed Transactions',    s.total_trx_fail],
+    ['Total Transactions',     s.total_trx],
+    ['Success Rate (%)',       sr],
+    ['Fail Rate (%)',          parseFloat(failRate)],
+    ['Total GMV (Rp)',         s.gmv],
+    ['Settled Amount (Rp)',    s.settled_amount],
+    ['Total Revenue (Rp)',     s.total_revenue],
+    ['Avg Transaction (Rp)',   s.avg_trx_value],
+  ];
+  const ws1 = XLSX.utils.aoa_to_sheet(kpiData);
+  ws1['!cols'] = [{wch:30},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'KPI Summary');
+
+  // Sheet 2: Revenue Detail
+  const rev = s.revenue_detail || {};
+  const revData = [['Acquirer','GMV (Rp)','Settled (Rp)','Revenue (Rp)','Rate (%)']];
+  let tGMV=0, tSet=0, tRev=0;
+  Object.entries(rev).forEach(([acq,d]) => {
+    tGMV+=d.gmv||0; tSet+=d.settled||0; tRev+=d.revenue||0;
+    revData.push([acq, d.gmv||0, d.settled||0, d.revenue||0, ((d.revenue_rate||0)*100).toFixed(4)]);
+  });
+  revData.push(['TOTAL', tGMV, tSet, tRev, '']);
+  const ws2 = XLSX.utils.aoa_to_sheet(revData);
+  ws2['!cols'] = [{wch:15},{wch:20},{wch:20},{wch:20},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Revenue Detail');
+
+  // Sheet 3: Top Merchants
+  const merchData = [['#','Merchant Name','Total Trx','Total Volume (Rp)']];
+  (window._lastMerchants||[]).forEach((m,i) => {
+    merchData.push([i+1, m.merchant_name||'—', m.total_trx||0, m.total_amount||0]);
+  });
+  const ws3 = XLSX.utils.aoa_to_sheet(merchData);
+  ws3['!cols'] = [{wch:5},{wch:40},{wch:12},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Top Merchants');
+
+  // Sheet 4: Hourly Stats
+  const hourData = [['Hour','Success','Fail','Total']];
+  (window._lastHourly||[]).forEach(h => {
+    hourData.push([
+      `${String(h.hour_of_day).padStart(2,'0')}:00`,
+      h.trx_success||0,
+      h.trx_fail||0,
+      (h.trx_success||0)+(h.trx_fail||0)
+    ]);
+  });
+  const ws4 = XLSX.utils.aoa_to_sheet(hourData);
+  ws4['!cols'] = [{wch:10},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Hourly Stats');
+
+  XLSX.writeFile(wb, `Daily_QRIS_Dashboard_AKT_${s.report_date.replace(/-/g,'')}.xlsx`);
 }
 
 // Init
