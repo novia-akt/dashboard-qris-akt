@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily QRIS Transaction Dashboard — AKT</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#1B2B4B;--blue:#2563EB;--green:#10B981;--red:#EF4444;--amber:#F59E0B;
+  --bg:#F1F5F9;--surface:#fff;--surface2:#F8FAFC;--border:#E2E8F0;
+  --text:#0F172A;--text2:#475569;--text3:#94A3B8;--r:10px;--r2:6px;
+}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
+.hdr{background:#fff;border-bottom:2px solid var(--border);height:68px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 20px;position:sticky;top:0;z-index:100}
+.hdr-left{display:flex;align-items:center}
+.hdr-logo{height:44px;object-fit:contain}
+.hdr-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.hdr-title{font-size:14px;font-weight:600;color:var(--navy);white-space:nowrap}
+.hdr-date-sub{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.hdr-right{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:var(--r2);font-size:12px;font-family:'Inter',sans-serif;cursor:pointer;border:none;font-weight:500;transition:background 0.15s}
+.btn-ghost{background:var(--surface2);color:var(--navy);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--border)}
+.btn-primary{background:var(--navy);color:#fff}
+.btn-primary:hover{background:#273d6b}
+select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var(--border);font-size:12px;font-family:'Inter',sans-serif;background:#fff;color:var(--navy);cursor:pointer}
+.loading-pg{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 68px);gap:16px}
+.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-size:14px;color:var(--text2)}
+.error-pg{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 68px);gap:12px;text-align:center;padding:2rem}
+.error-pg .icon{font-size:48px}
+.error-pg h2{font-size:18px;color:var(--navy)}
+.error-pg p{font-size:13px;color:var(--text2);max-width:400px}
+.no-data-pg{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 68px);gap:12px;text-align:center}
+.main{display:none;padding:16px 20px}
+.dash-header{margin-bottom:12px}
+.dash-header h1{font-size:19px;font-weight:700;color:var(--navy);margin-bottom:2px}
+.dash-header p{font-size:11px;color:var(--text2)}
+.analysis{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12px;color:#1E3A8A;line-height:1.8}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
+.g2{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:10px}
+.g2e{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.kpi{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.kpi .lbl{font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:5px}
+.kpi .val{font-size:24px;font-weight:700;letter-spacing:-0.02em;line-height:1;margin-bottom:3px}
+.kpi .sub{font-size:10px;color:var(--text3)}
+.kpi .val.navy{color:var(--navy)}.kpi .val.green{color:var(--green)}.kpi .val.blue{color:var(--blue)}.kpi .val.red{color:var(--red)}.kpi .val.amber{color:var(--amber)}
+.card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
+.card-hd{font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.card-hd-sub{font-size:9px;color:var(--text3);font-family:'JetBrains Mono',monospace;font-weight:400}
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl th{font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.05em;padding:5px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl th.r{text-align:right}
+.tbl td{padding:5px 8px;border-bottom:0.5px solid #F1F5F9;color:var(--text)}
+.tbl td.r{text-align:right;font-family:'JetBrains Mono',monospace;font-size:10px}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr.ttl td{font-weight:600;background:var(--surface2)}
+.tbl tr.hl2 td{background:#D1FAE5;font-weight:600}
+.tbl thead.navy th{background:var(--navy);color:#fff;border-bottom:none;padding:6px 8px}
+.tbl thead.navy th.r{text-align:right}
+.badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:500}
+.bg{background:#D1FAE5;color:#065F46}.br{background:#FEE2E2;color:#991B1B}
+.chart-wrap{position:relative;height:180px}
+.warn{background:#FEF2F2;border:1px solid #FECACA;border-radius:var(--r2);padding:8px 10px;font-size:11px;color:#991B1B;margin-top:8px}
+.sec-lbl{font-size:9px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:8px;margin-top:4px}
+.footer{text-align:center;padding:14px;font-size:10px;color:var(--text3);border-top:1px solid var(--border);margin-top:8px}
+.date-nav{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:var(--r2);padding:4px 8px}
+.date-nav span{font-size:11px;color:var(--text2)}
+@media(max-width:900px){.g4{grid-template-columns:1fr 1fr}.g2,.g2e{grid-template-columns:1fr}.hdr{grid-template-columns:auto 1fr auto}}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-left">
+    <img src="data:image/png;base64,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" class="hdr-logo" alt="Paycloud">
+  </div>
+  <div class="hdr-center">
+    <span class="hdr-title">Daily QRIS Transaction Dashboard — AKT</span>
+    <span class="hdr-date-sub" id="hdrDateSub">Memuat data...</span>
+  </div>
+  <div class="hdr-right">
+    <div class="date-nav">
+      <span>📅 Tanggal:</span>
+      <select class="date-select" id="dateSelect" onchange="loadDate(this.value)">
+        <option value="">Memuat...</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<!-- LOADING -->
+<div class="loading-pg" id="loadingPg">
+  <div class="spinner"></div>
+  <div class="loading-txt" id="loadingTxt">Memuat data dari database...</div>
+</div>
+
+<!-- ERROR -->
+<div class="error-pg" id="errorPg">
+  <div class="icon">⚠️</div>
+  <h2>Gagal Memuat Data</h2>
+  <p id="errorMsg">Tidak dapat terhubung ke database. Pastikan koneksi internet aktif.</p>
+</div>
+
+<!-- NO DATA -->
+<div class="no-data-pg" id="noDataPg">
+  <div style="font-size:48px">📭</div>
+  <h2 style="font-size:18px;color:var(--navy)">Belum Ada Data</h2>
+  <p style="font-size:13px;color:var(--text2)">Data untuk tanggal ini belum tersedia.<br>Jalankan script rekonsiliasi terlebih dahulu.</p>
+</div>
+
+<!-- MAIN DASHBOARD -->
+<div class="main" id="mainDash">
+  <div class="dash-header">
+    <h1>Daily QRIS Transaction Dashboard — <span style="color:var(--blue)">AKT</span></h1>
+    <p id="subtitle">—</p>
+  </div>
+
+  <div class="analysis" id="analysisBox" style="display:none">
+    <strong>💡 Daily Analysis Summary</strong> — <span id="analysisTxt"></span>
+  </div>
+
+  <div class="sec-lbl">📊 Performance Summary</div>
+  <div class="g4" id="kpiGrid"></div>
+
+  <div class="g2" style="margin-bottom:10px">
+    <div class="card">
+      <div class="card-hd">🟢 Transaction Status</div>
+      <table class="tbl" id="statusTbl"></table>
+      <div id="failWarn"></div>
+    </div>
+    <div class="card">
+      <div class="card-hd">
+        ⏰ Distribusi Transaksi per Jam
+        <span class="card-hd-sub" id="peakHourBadge"></span>
+      </div>
+      <div class="chart-wrap"><canvas id="chartHour"></canvas></div>
+    </div>
+  </div>
+
+  <div class="g2e">
+    <div class="card">
+      <div class="card-hd">💰 Revenue Detail per Acquirer</div>
+      <table class="tbl">
+        <thead class="navy"><tr>
+          <th>Acquirer</th><th class="r">GMV</th><th class="r">Settled</th><th class="r">Revenue</th>
+        </tr></thead>
+        <tbody id="revBody"></tbody>
+        <tfoot id="revFoot"></tfoot>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-hd">🏆 Top 10 Merchants by Volume</div>
+      <table class="tbl">
+        <thead><tr><th>#</th><th>Merchant</th><th class="r">Trx</th><th class="r">Volume</th></tr></thead>
+        <tbody id="merchantBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer" id="footer"></div>
+</div>
+
+<script>
+// ============================================================
+// KONFIGURASI — ganti dengan nilai dari Supabase kamu
+// ============================================================
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_KEY = 'YOUR_PUBLISHABLE_KEY';
+// ============================================================
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const rpFull = n => { if(n==null||isNaN(n)) return '—'; const v=Math.round(n); return (v<0?'-':'')+'Rp '+Math.abs(v).toLocaleString('id-ID'); };
+const rpS = n => { if(n==null||isNaN(n)) return '—'; const v=Math.round(n); const a=Math.abs(v); const s=v<0?'-':''; if(a>=1e9) return s+'Rp '+(a/1e9).toFixed(2)+'M'; if(a>=1e6) return s+'Rp '+(a/1e6).toFixed(1)+'jt'; return s+'Rp '+a.toLocaleString('id-ID'); };
+const numFmt = n => n==null||isNaN(n)?'—':Math.round(n).toLocaleString('id-ID');
+const pct = (a,b) => b>0?(a/b*100).toFixed(2)+'%':'0.00%';
+
+async function supabaseFetch(table, params='') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function show(id) {
+  ['loadingPg','errorPg','noDataPg','mainDash'].forEach(i => {
+    const el = document.getElementById(i);
+    el.style.display = el.id === id ? (id==='mainDash'?'block':'flex') : 'none';
+  });
+}
+
+async function loadDateList() {
+  try {
+    const data = await supabaseFetch('daily_summary', 'select=report_date&order=report_date.desc&limit=90');
+    const sel = document.getElementById('dateSelect');
+    sel.innerHTML = '';
+    if (!data.length) {
+      sel.innerHTML = '<option value="">Belum ada data</option>';
+      show('noDataPg'); return;
+    }
+    data.forEach(row => {
+      const iso = row.report_date;
+      const [y,m,d] = iso.split('-');
+      const opt = document.createElement('option');
+      opt.value = iso;
+      opt.textContent = `${parseInt(d)} ${MONTHS[parseInt(m)-1]} ${y}`;
+      sel.appendChild(opt);
+    });
+    loadDate(data[0].report_date);
+  } catch(e) {
+    document.getElementById('errorMsg').textContent = `Error: ${e.message}`;
+    show('errorPg');
+  }
+}
+
+async function loadDate(dateISO) {
+  if (!dateISO) return;
+  show('loadingPg');
+  document.getElementById('loadingTxt').textContent = `Memuat data ${dateISO}...`;
+  try {
+    const [summary, hourly, merchants] = await Promise.all([
+      supabaseFetch('daily_summary', `report_date=eq.${dateISO}&limit=1`),
+      supabaseFetch('hourly_stats', `report_date=eq.${dateISO}&order=hour_of_day.asc`),
+      supabaseFetch('top_merchants', `report_date=eq.${dateISO}&order=rank.asc&limit=10`)
+    ]);
+    if (!summary.length) { show('noDataPg'); return; }
+    renderDashboard(summary[0], hourly, merchants);
+  } catch(e) {
+    document.getElementById('errorMsg').textContent = `Gagal memuat data: ${e.message}`;
+    show('errorPg');
+  }
+}
+
+function renderDashboard(s, hourly, merchants) {
+  const [y,mo,d] = s.report_date.split('-');
+  const dateStr = `${parseInt(d)} ${MONTHS[parseInt(mo)-1]} ${y}`;
+
+  document.getElementById('hdrDateSub').textContent = dateStr;
+  document.getElementById('subtitle').textContent =
+    `Data: ${dateStr} 00:00 to ${dateStr} 23:59 | Total ${numFmt(s.total_trx)} Transactions`;
+  document.getElementById('footer').textContent =
+    `Auto-generated dashboard — Paycloud × AKT — ${dateStr}`;
+
+  const sr = parseFloat(s.success_rate)||0;
+  const failRate = s.total_trx > 0 ? ((s.total_trx_fail/s.total_trx)*100).toFixed(2) : '0.00';
+
+  // KPI
+  document.getElementById('kpiGrid').innerHTML = [
+    {lbl:'Active Merchant', val:numFmt(s.total_merchant), sub:'Merchant dengan trx sukses', cls:'navy'},
+    {lbl:'Successful Transactions', val:numFmt(s.total_trx_success), sub:'Dari file Reconciliation', cls:'green'},
+    {lbl:'Success Rate', val:sr+'%', sub:`${numFmt(s.total_trx_success)} / ${numFmt(s.total_trx)}`, cls:sr>=80?'green':'red'},
+    {lbl:'Total GMV', val:rpS(s.gmv), sub:'Success Only', cls:'blue'},
+    {lbl:'Settled Amount', val:rpS(s.settled_amount), sub:'Setelah MDR & adjustment', cls:'navy'},
+    {lbl:'Total Revenue', val:rpS(s.total_revenue), sub:'Settled × 0.1575%', cls:'green'},
+    {lbl:'Avg Transaction', val:rpS(s.avg_trx_value), sub:'Per transaksi sukses', cls:'blue'},
+    {lbl:'Fail Rate', val:failRate+'%', sub:`${numFmt(s.total_trx_fail)} trx gagal`, cls:parseFloat(failRate)>20?'red':'amber'},
+  ].map(k=>`<div class="kpi"><div class="lbl">${k.lbl}</div><div class="val ${k.cls}">${k.val}</div><div class="sub">${k.sub}</div></div>`).join('');
+
+  // Status table
+  const total = s.total_trx;
+  document.getElementById('statusTbl').innerHTML = `
+    <thead><tr><th>Status</th><th class="r">Count</th><th class="r">%</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge bg">SUCCESS</span></td><td class="r">${numFmt(s.total_trx_success)}</td><td class="r">${pct(s.total_trx_success,total)}</td></tr>
+      <tr><td><span class="badge br">FAIL</span></td><td class="r">${numFmt(s.total_trx_fail)}</td><td class="r">${pct(s.total_trx_fail,total)}</td></tr>
+      <tr class="ttl"><td>TOTAL</td><td class="r">${numFmt(total)}</td><td class="r">100.00%</td></tr>
+    </tbody>`;
+
+  if (parseFloat(failRate)>20)
+    document.getElementById('failWarn').innerHTML = `<div class="warn">⚠️ Fail rate ${failRate}% — di atas 20%, perlu dicek!</div>`;
+  else document.getElementById('failWarn').innerHTML = '';
+
+  // Hourly chart
+  const hourSuccess = new Array(24).fill(0);
+  const hourFail    = new Array(24).fill(0);
+  hourly.forEach(h => {
+    hourSuccess[h.hour_of_day] = h.trx_success||0;
+    hourFail[h.hour_of_day]    = h.trx_fail||0;
+  });
+  const peakH = hourFail.indexOf(Math.max(...hourFail));
+  document.getElementById('peakHourBadge').textContent =
+    `Peak fail: ${String(peakH).padStart(2,'0')}.00–${String((peakH+1)%24).padStart(2,'0')}.00`;
+  if(window._ch) window._ch.destroy();
+  window._ch = new Chart(document.getElementById('chartHour'), {
+    type:'bar',
+    data:{
+      labels:Array.from({length:24},(_,i)=>String(i).padStart(2,'0')),
+      datasets:[
+        {label:'Success',data:hourSuccess,backgroundColor:'rgba(16,185,129,0.7)',borderRadius:2},
+        {label:'Fail',data:hourFail,backgroundColor:'rgba(239,68,68,0.8)',borderRadius:2}
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},
+      scales:{x:{stacked:true,ticks:{font:{size:9},maxRotation:0},grid:{display:false}},
+              y:{stacked:true,ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,0.04)'}}}}
+  });
+
+  // Revenue detail
+  const rev = s.revenue_detail || {};
+  let revRows = '', totalGMV=0, totalSettled=0, totalRevenue=0;
+  Object.entries(rev).forEach(([acq, d]) => {
+    totalGMV     += d.gmv||0;
+    totalSettled += d.settled||0;
+    totalRevenue += d.revenue||0;
+    revRows += `<tr><td>${acq}</td><td class="r">${rpFull(d.gmv)}</td><td class="r">${rpFull(d.settled)}</td><td class="r" style="color:var(--green)">${rpFull(d.revenue)}</td></tr>`;
+  });
+  document.getElementById('revBody').innerHTML = revRows;
+  document.getElementById('revFoot').innerHTML = `<tr class="hl2"><td><strong>TOTAL</strong></td><td class="r">${rpFull(totalGMV)}</td><td class="r">${rpFull(totalSettled)}</td><td class="r" style="color:var(--green)">${rpFull(totalRevenue)}</td></tr>`;
+
+  // Top merchants
+  document.getElementById('merchantBody').innerHTML = merchants.map((m,i) =>
+    `<tr><td style="font-weight:700;color:var(--text3);font-size:10px">${i+1}</td>
+     <td>${m.merchant_name||'—'}</td>
+     <td class="r">${numFmt(m.total_trx)}</td>
+     <td class="r" style="color:var(--blue)">${rpFull(m.total_amount)}</td></tr>`
+  ).join('');
+
+  // Analysis
+  document.getElementById('analysisTxt').textContent =
+    `GMV: ${rpFull(s.gmv)} | Settled: ${rpFull(s.settled_amount)} | Revenue: ${rpFull(s.total_revenue)} | ` +
+    `Total: ${numFmt(total)} trx — SUCCESS: ${numFmt(s.total_trx_success)} (${sr}%) | FAIL: ${numFmt(s.total_trx_fail)} (${failRate}%) | ` +
+    `Merchant aktif: ${numFmt(s.total_merchant)} | Avg trx: ${rpS(s.avg_trx_value)}`;
+  document.getElementById('analysisBox').style.display = 'block';
+
+  show('mainDash');
+}
+
+// Init
+loadDateList();
+</script>
+</body>
+</html>
