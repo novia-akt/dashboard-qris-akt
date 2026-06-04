@@ -400,8 +400,7 @@ function renderDashboard(s, hourly, merchants, mtdData, ytdData) {
     amount_transfer: sumField(ytdData, 'total_amount_transfer'),
   };
 
-  const [yr,mo,d] = s.report_date.split('-');
-  document.getElementById('mtdPeriod').textContent = `(${parseInt(d)} ${MONTHS[parseInt(mo)-1]} ${yr})`;
+  document.getElementById('mtdPeriod').textContent = `(${parseInt(d)} ${MONTHS[parseInt(mo)-1]} ${y})`;
 
   const mtdRows = [
     ['Total Transaksi',         numFmt(s.total_trx_success),  numFmt(mtd.trx),              numFmt(ytd.trx)],
