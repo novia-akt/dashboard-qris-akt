@@ -148,6 +148,13 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var
 
   <div class="g2e">
     <div class="card">
+      <div class="card-hd">📋 Settlement Summary — Qoin</div>
+      <table class="tbl">
+        <thead><tr><th>Description</th><th class="r">Amount</th></tr></thead>
+        <tbody id="summaryBody"></tbody>
+      </table>
+    </div>
+    <div class="card">
       <div class="card-hd">💰 Revenue Detail per Acquirer</div>
       <table class="tbl">
         <thead class="navy"><tr>
@@ -157,11 +164,23 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var
         <tfoot id="revFoot"></tfoot>
       </table>
     </div>
+  </div>
+
+  <div class="g2e">
     <div class="card">
       <div class="card-hd">🏆 Top 10 Merchants by Volume</div>
       <table class="tbl">
         <thead><tr><th>#</th><th>Merchant</th><th class="r">Trx</th><th class="r">Volume</th></tr></thead>
         <tbody id="merchantBody"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-hd">📅 Daily Report — QOINHUB AKT <span class="card-hd-sub" id="mtdPeriod"></span></div>
+      <table class="tbl">
+        <thead class="navy"><tr>
+          <th>Description</th><th class="r">Yesterday</th><th class="r">Month to Date</th><th class="r">Year to Date</th>
+        </tr></thead>
+        <tbody id="mtdBody"></tbody>
       </table>
     </div>
   </div>
@@ -231,20 +250,26 @@ async function loadDate(dateISO) {
   show('loadingPg');
   document.getElementById('loadingTxt').textContent = `Memuat data ${dateISO}...`;
   try {
-    const [summary, hourly, merchants] = await Promise.all([
+    const [y,mo] = dateISO.split('-');
+    const monthStart = `${y}-${mo}-01`;
+    const yearStart  = `${y}-01-01`;
+
+    const [summary, hourly, merchants, mtdData, ytdData] = await Promise.all([
       supabaseFetch('daily_summary', `report_date=eq.${dateISO}&limit=1`),
       supabaseFetch('hourly_stats', `report_date=eq.${dateISO}&order=hour_of_day.asc`),
-      supabaseFetch('top_merchants', `report_date=eq.${dateISO}&order=rank.asc&limit=10`)
+      supabaseFetch('top_merchants', `report_date=eq.${dateISO}&order=rank.asc&limit=10`),
+      supabaseFetch('daily_summary', `report_date=gte.${monthStart}&report_date=lte.${dateISO}&select=total_trx_success,gmv,total_mdr,total_chargeback,total_representment,total_dispute,total_transfer_fee,total_amount_transfer,settled_amount`),
+      supabaseFetch('daily_summary', `report_date=gte.${yearStart}&report_date=lte.${dateISO}&select=total_trx_success,gmv,total_mdr,total_chargeback,total_representment,total_dispute,total_transfer_fee,total_amount_transfer,settled_amount`)
     ]);
     if (!summary.length) { show('noDataPg'); return; }
-    renderDashboard(summary[0], hourly, merchants);
+    renderDashboard(summary[0], hourly, merchants, mtdData, ytdData);
   } catch(e) {
     document.getElementById('errorMsg').textContent = `Gagal memuat data: ${e.message}`;
     show('errorPg');
   }
 }
 
-function renderDashboard(s, hourly, merchants) {
+function renderDashboard(s, hourly, merchants, mtdData, ytdData) {
   window._lastData      = s;
   window._lastHourly    = hourly;
   window._lastMerchants = merchants;
@@ -311,6 +336,25 @@ function renderDashboard(s, hourly, merchants) {
               y:{stacked:true,ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,0.04)'}}}}
   });
 
+  // Settlement Summary
+  const mdr  = s.total_mdr  || 0;
+  const cb   = s.total_chargeback || 0;
+  const rep  = s.total_representment || 0;
+  const disp = s.total_dispute || 0;
+  const trf  = s.total_transfer_fee || 0;
+  const amt  = s.total_amount_transfer || 0;
+  document.getElementById('summaryBody').innerHTML = `
+    <tr><td>Jumlah Merchant</td><td class="r">${numFmt(s.total_merchant)} Merchant</td></tr>
+    <tr><td>Total Trx</td><td class="r">${numFmt(s.total_trx_success)} Transaksi</td></tr>
+    <tr><td>Amount Trx</td><td class="r">${rpFull(s.gmv)}</td></tr>
+    <tr><td style="color:var(--red)">MDR</td><td class="r" style="color:var(--red)">-${rpFull(mdr)}</td></tr>
+    <tr><td style="color:var(--red)">Chargeback</td><td class="r" style="color:var(--red)">${cb ? '-'+rpFull(cb) : '—'}</td></tr>
+    <tr><td>Representment</td><td class="r" style="color:var(--green)">${rep ? rpFull(rep) : '—'}</td></tr>
+    <tr><td>Settle Dispute</td><td class="r">${disp ? rpFull(disp) : '—'}</td></tr>
+    <tr style="background:var(--surface2)"><td><strong>Settled Amount</strong></td><td class="r"><strong>${rpFull(s.settled_amount)}</strong></td></tr>
+    <tr><td style="color:var(--red)">Biaya Transfer Antar Bank</td><td class="r" style="color:var(--red)">-${rpFull(trf)}</td></tr>
+    <tr style="background:#D1FAE5"><td><strong style="color:#065F46">*Amount Transfer to Merchant</strong></td><td class="r"><strong style="color:#065F46">${rpFull(amt)}</strong></td></tr>`;
+
   // Revenue detail
   const rev = s.revenue_detail || {};
   let revRows = '', totalGMV=0, totalSettled=0, totalRevenue=0;
@@ -330,6 +374,48 @@ function renderDashboard(s, hourly, merchants) {
      <td class="r">${numFmt(m.total_trx)}</td>
      <td class="r" style="color:var(--blue)">${rpFull(m.total_amount)}</td></tr>`
   ).join('');
+
+  // MTD/YTD aggregation
+  const sumField = (arr, field) => arr.reduce((a,r) => a + (parseFloat(r[field])||0), 0);
+  const mtd = {
+    trx:      sumField(mtdData, 'total_trx_success'),
+    gmv:      sumField(mtdData, 'gmv'),
+    mdr:      sumField(mtdData, 'total_mdr'),
+    cb:       sumField(mtdData, 'total_chargeback'),
+    rep:      sumField(mtdData, 'total_representment'),
+    dispute:  sumField(mtdData, 'total_dispute'),
+    transfer: sumField(mtdData, 'total_transfer_fee'),
+    settled:  sumField(mtdData, 'settled_amount'),
+    amount_transfer: sumField(mtdData, 'total_amount_transfer'),
+  };
+  const ytd = {
+    trx:      sumField(ytdData, 'total_trx_success'),
+    gmv:      sumField(ytdData, 'gmv'),
+    mdr:      sumField(ytdData, 'total_mdr'),
+    cb:       sumField(ytdData, 'total_chargeback'),
+    rep:      sumField(ytdData, 'total_representment'),
+    dispute:  sumField(ytdData, 'total_dispute'),
+    transfer: sumField(ytdData, 'total_transfer_fee'),
+    settled:  sumField(ytdData, 'settled_amount'),
+    amount_transfer: sumField(ytdData, 'total_amount_transfer'),
+  };
+
+  const [yr,mo,d] = s.report_date.split('-');
+  document.getElementById('mtdPeriod').textContent = `(${parseInt(d)} ${MONTHS[parseInt(mo)-1]} ${yr})`;
+
+  const mtdRows = [
+    ['Total Transaksi',         numFmt(s.total_trx_success),  numFmt(mtd.trx),              numFmt(ytd.trx)],
+    ['Amount',                  rpFull(s.gmv),                rpFull(mtd.gmv),              rpFull(ytd.gmv)],
+    ['MDR',                     rpFull(mdr),                  rpFull(mtd.mdr),              rpFull(ytd.mdr)],
+    ['Chargeback',              cb?rpFull(cb):'—',            mtd.cb?rpFull(mtd.cb):'—',   ytd.cb?rpFull(ytd.cb):'—'],
+    ['Representment',           rep?rpFull(rep):'—',          mtd.rep?rpFull(mtd.rep):'—', ytd.rep?rpFull(ytd.rep):'—'],
+    ['Biaya Transfer Antar Bank',rpFull(trf),                 rpFull(mtd.transfer),         rpFull(ytd.transfer)],
+    ['Settle Dispute',          disp?rpFull(disp):'—',        mtd.dispute?rpFull(mtd.dispute):'—', ytd.dispute?rpFull(ytd.dispute):'—'],
+  ];
+  document.getElementById('mtdBody').innerHTML =
+    mtdRows.map(r => `<tr><td>${r[0]}</td><td class="r">${r[1]}</td><td class="r">${r[2]}</td><td class="r">${r[3]}</td></tr>`).join('') +
+    `<tr style="background:var(--surface2)"><td><strong>Settle Amount</strong></td><td class="r"><strong>${rpFull(s.settled_amount)}</strong></td><td class="r"><strong>${rpFull(mtd.settled)}</strong></td><td class="r"><strong>${rpFull(ytd.settled)}</strong></td></tr>` +
+    `<tr style="background:#D1FAE5"><td><strong style="color:#065F46">Amount Transfer</strong></td><td class="r"><strong style="color:#065F46">${rpFull(amt)}</strong></td><td class="r"><strong style="color:#065F46">${rpFull(mtd.amount_transfer)}</strong></td><td class="r"><strong style="color:#065F46">${rpFull(ytd.amount_transfer)}</strong></td></tr>`;
 
   // Analysis
   document.getElementById('analysisTxt').textContent =
