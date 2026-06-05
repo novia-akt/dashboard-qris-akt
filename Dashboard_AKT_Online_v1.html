@@ -273,6 +273,8 @@ function renderDashboard(s, hourly, merchants, mtdData, ytdData) {
   window._lastData      = s;
   window._lastHourly    = hourly;
   window._lastMerchants = merchants;
+  window._lastMtd       = mtdData;
+  window._lastYtd       = ytdData;
   const [y,mo,d] = s.report_date.split('-');
   const dateStr = `${parseInt(d)} ${MONTHS[parseInt(mo)-1]} ${y}`;
 
@@ -554,10 +556,113 @@ function dlPDF() {
     y += 6;
   });
 
+  // Settlement Summary
+  if (y > 200) { doc.addPage(); y = 20; }
+  const mdr   = Math.abs(s.total_mdr||0);
+  const cb    = Math.abs(s.total_chargeback||0);
+  const rep   = Math.abs(s.total_representment||0);
+  const disp  = Math.abs(s.total_dispute||0);
+  const trf   = Math.abs(s.total_transfer_fee||0);
+  const amt   = Math.abs(s.total_amount_transfer||0);
+
+  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+  doc.text('Settlement Summary — QOIN', M, y); y += 5;
+  doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
+  doc.text('Description', M+2, y+1);
+  doc.text('Amount', M+178, y+1, {align:'right'});
+  y += 6;
+
+  const settleRows = [
+    ['Jumlah Merchant', numFmt(s.total_merchant)+' Merchant', false, false],
+    ['Total Trx', numFmt(s.total_trx_success)+' Transaksi', false, false],
+    ['Amount Trx', rpFull(s.gmv), false, false],
+    ['MDR', '-'+rpFull(mdr), true, false],
+    ['Chargeback', cb?('-'+rpFull(cb)):'—', true, false],
+    ['Representment', rep?rpFull(rep):'—', false, false],
+    ['Settle Dispute', disp?('-'+rpFull(disp)):'—', true, false],
+    ['Settled Amount', rpFull(s.settled_amount), false, true],
+    ['Biaya Transfer Antar Bank', '-'+rpFull(trf), true, false],
+    ['*Amount Transfer to Merchant', rpFull(amt), false, true],
+  ];
+  settleRows.forEach(([desc, val, isRed, isBold], i) => {
+    if (isBold) doc.setFillColor(189,215,238);
+    else doc.setFillColor(i%2===0?248:255, i%2===0?250:255, i%2===0?252:255);
+    doc.rect(M, y-3, W-M*2, 6, 'F');
+    doc.setTextColor(isRed?180:15, isRed?0:23, isRed?0:42);
+    doc.setFont('helvetica', isBold?'bold':'normal'); doc.setFontSize(7);
+    doc.text(desc, M+2, y+1);
+    doc.text(val, M+178, y+1, {align:'right'});
+    y += 6;
+  });
+  y += 6;
+
+  // Daily Report MTD/YTD
+  const mtd = window._lastMtd || {};
+  const ytd = window._lastYtd || {};
+  const sumF = (obj, key) => { let t=0; if(Array.isArray(obj)) obj.forEach(r=>t+=Math.abs(r[key]||0)); return t; };
+
+  const mtdTrx      = Array.isArray(mtd) ? mtd.reduce((a,r)=>a+(r.total_trx_success||0),0) : 0;
+  const mtdGmv      = Array.isArray(mtd) ? sumF(mtd,'gmv') : 0;
+  const mtdMdr      = Array.isArray(mtd) ? sumF(mtd,'total_mdr') : 0;
+  const mtdCb       = Array.isArray(mtd) ? sumF(mtd,'total_chargeback') : 0;
+  const mtdRep      = Array.isArray(mtd) ? sumF(mtd,'total_representment') : 0;
+  const mtdTrf      = Array.isArray(mtd) ? sumF(mtd,'total_transfer_fee') : 0;
+  const mtdDisp     = Array.isArray(mtd) ? sumF(mtd,'total_dispute') : 0;
+  const mtdSettled  = Array.isArray(mtd) ? sumF(mtd,'settled_amount') : 0;
+  const mtdAmt      = Array.isArray(mtd) ? sumF(mtd,'total_amount_transfer') : 0;
+
+  const ytdTrx      = Array.isArray(ytd) ? ytd.reduce((a,r)=>a+(r.total_trx_success||0),0) : 0;
+  const ytdGmv      = Array.isArray(ytd) ? sumF(ytd,'gmv') : 0;
+  const ytdMdr      = Array.isArray(ytd) ? sumF(ytd,'total_mdr') : 0;
+  const ytdCb       = Array.isArray(ytd) ? sumF(ytd,'total_chargeback') : 0;
+  const ytdRep      = Array.isArray(ytd) ? sumF(ytd,'total_representment') : 0;
+  const ytdTrf      = Array.isArray(ytd) ? sumF(ytd,'total_transfer_fee') : 0;
+  const ytdDisp     = Array.isArray(ytd) ? sumF(ytd,'total_dispute') : 0;
+  const ytdSettled  = Array.isArray(ytd) ? sumF(ytd,'settled_amount') : 0;
+  const ytdAmt      = Array.isArray(ytd) ? sumF(ytd,'total_amount_transfer') : 0;
+
+  if (y > 220) { doc.addPage(); y = 20; }
+  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+  doc.text('Daily Report — QOINHUB AKT', M, y); y += 5;
+  doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
+  doc.text('Description', M+2, y+1);
+  doc.text('Yesterday', M+90, y+1, {align:'right'});
+  doc.text('Month to Date', M+135, y+1, {align:'right'});
+  doc.text('Year to Date', M+178, y+1, {align:'right'});
+  y += 6;
+
+  const mtdRows2 = [
+    ['Total Transaksi', numFmt(s.total_trx_success), numFmt(mtdTrx), numFmt(ytdTrx), false],
+    ['Amount',          rpFull(s.gmv),               rpFull(mtdGmv),  rpFull(ytdGmv),  false],
+    ['MDR',             rpFull(mdr),                 rpFull(mtdMdr),  rpFull(ytdMdr),  false],
+    ['Chargeback',      cb?rpFull(cb):'—',           mtdCb?rpFull(mtdCb):'—', ytdCb?rpFull(ytdCb):'—', false],
+    ['Representment',   rep?rpFull(rep):'—',         mtdRep?rpFull(mtdRep):'—', ytdRep?rpFull(ytdRep):'—', false],
+    ['Biaya Transfer',  rpFull(trf),                 rpFull(mtdTrf),  rpFull(ytdTrf),  false],
+    ['Settle Dispute',  disp?rpFull(disp):'—',       mtdDisp?rpFull(mtdDisp):'—', ytdDisp?rpFull(ytdDisp):'—', false],
+    ['Settle Amount',   rpFull(s.settled_amount),    rpFull(mtdSettled), rpFull(ytdSettled), true],
+    ['Amount Transfer', rpFull(amt),                 rpFull(mtdAmt),  rpFull(ytdAmt),  true],
+  ];
+  mtdRows2.forEach(([desc, yday, mtdV, ytdV, isBold], i) => {
+    if (isBold) doc.setFillColor(189,215,238);
+    else doc.setFillColor(i%2===0?248:255, i%2===0?250:255, i%2===0?252:255);
+    doc.rect(M, y-3, W-M*2, 6, 'F');
+    doc.setTextColor(15,23,42);
+    doc.setFont('helvetica', isBold?'bold':'normal'); doc.setFontSize(7);
+    doc.text(desc,  M+2,   y+1);
+    doc.text(yday,  M+90,  y+1, {align:'right'});
+    doc.text(mtdV,  M+135, y+1, {align:'right'});
+    doc.text(ytdV,  M+178, y+1, {align:'right'});
+    y += 6;
+  });
+  y += 4;
+
   // Footer
-  doc.setFillColor(27,43,75); doc.rect(0,284,W,13,'F');
+  const lastY = 284;
+  doc.setFillColor(27,43,75); doc.rect(0,lastY,W,13,'F');
   doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','normal');
-  doc.text(`Auto-generated dashboard — Paycloud × AKT — ${dateStr}`, W/2, 292, {align:'center'});
+  doc.text(`Auto-generated dashboard — Paycloud × AKT — ${dateStr}`, W/2, lastY+8, {align:'center'});
 
   doc.save(`Daily_QRIS_Dashboard_AKT_${s.report_date.replace(/-/g,'')}.pdf`);
 }
@@ -631,6 +736,58 @@ function dlExcel() {
   const ws4 = XLSX.utils.aoa_to_sheet(hourData);
   ws4['!cols'] = [{wch:10},{wch:12},{wch:12},{wch:12}];
   XLSX.utils.book_append_sheet(wb, ws4, 'Hourly Stats');
+
+  // Sheet 5: Settlement Summary
+  const mdrX  = Math.abs(s.total_mdr||0);
+  const cbX   = Math.abs(s.total_chargeback||0);
+  const repX  = Math.abs(s.total_representment||0);
+  const dispX = Math.abs(s.total_dispute||0);
+  const trfX  = Math.abs(s.total_transfer_fee||0);
+  const amtX  = Math.abs(s.total_amount_transfer||0);
+  const settleData = [
+    ['Daily QRIS Dashboard — AKT'],
+    [`Tanggal: ${dateStr}`],
+    [],
+    ['Description', 'Amount (Rp)'],
+    ['Jumlah Merchant',             s.total_merchant],
+    ['Total Trx',                   s.total_trx_success],
+    ['Amount Trx',                  s.gmv],
+    ['MDR',                         -mdrX],
+    ['Chargeback',                  cbX ? -cbX : 0],
+    ['Representment',               repX],
+    ['Settle Dispute',              dispX ? -dispX : 0],
+    ['Settled Amount',              s.settled_amount],
+    ['Biaya Transfer Antar Bank',   -trfX],
+    ['*Amount Transfer to Merchant',amtX],
+  ];
+  const ws5 = XLSX.utils.aoa_to_sheet(settleData);
+  ws5['!cols'] = [{wch:35},{wch:22}];
+  XLSX.utils.book_append_sheet(wb, ws5, 'Settlement Summary');
+
+  // Sheet 6: Daily Report MTD/YTD
+  const mtdX = window._lastMtd || [];
+  const ytdX = window._lastYtd || [];
+  const sumFX = (arr, key) => { let t=0; if(Array.isArray(arr)) arr.forEach(r=>t+=Math.abs(r[key]||0)); return t; };
+  const mtdTrxX     = Array.isArray(mtdX) ? mtdX.reduce((a,r)=>a+(r.total_trx_success||0),0) : 0;
+  const ytdTrxX     = Array.isArray(ytdX) ? ytdX.reduce((a,r)=>a+(r.total_trx_success||0),0) : 0;
+  const reportData = [
+    ['Daily Report — QOINHUB AKT'],
+    [`Tanggal: ${dateStr}`],
+    [],
+    ['Description', 'Yesterday', 'Month to Date', 'Year to Date'],
+    ['Total Transaksi',   s.total_trx_success,  mtdTrxX,                            ytdTrxX],
+    ['Amount (Rp)',       s.gmv,                 sumFX(mtdX,'gmv'),                  sumFX(ytdX,'gmv')],
+    ['MDR (Rp)',          mdrX,                  sumFX(mtdX,'total_mdr'),            sumFX(ytdX,'total_mdr')],
+    ['Chargeback (Rp)',   cbX||0,                sumFX(mtdX,'total_chargeback'),     sumFX(ytdX,'total_chargeback')],
+    ['Representment (Rp)',repX||0,               sumFX(mtdX,'total_representment'),  sumFX(ytdX,'total_representment')],
+    ['Biaya Transfer (Rp)',trfX,                 sumFX(mtdX,'total_transfer_fee'),   sumFX(ytdX,'total_transfer_fee')],
+    ['Settle Dispute (Rp)',dispX||0,             sumFX(mtdX,'total_dispute'),        sumFX(ytdX,'total_dispute')],
+    ['Settled Amount (Rp)',s.settled_amount,     sumFX(mtdX,'settled_amount'),       sumFX(ytdX,'settled_amount')],
+    ['Amount Transfer (Rp)',amtX,                sumFX(mtdX,'total_amount_transfer'),sumFX(ytdX,'total_amount_transfer')],
+  ];
+  const ws6 = XLSX.utils.aoa_to_sheet(reportData);
+  ws6['!cols'] = [{wch:30},{wch:20},{wch:20},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws6, 'Daily Report MTD-YTD');
 
   XLSX.writeFile(wb, `Daily_QRIS_Dashboard_AKT_${s.report_date.replace(/-/g,'')}.xlsx`);
 }
