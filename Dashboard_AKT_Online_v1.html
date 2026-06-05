@@ -693,9 +693,9 @@ function dlExcel() {
     ['Success Rate (%)',       sr],
     ['Fail Rate (%)',          parseFloat(failRate)],
     ['Total GMV (Rp)',         s.gmv],
-    ['Settled Amount (Rp)',    s.settled_amount],
+    ['Settled Amount (Rp)',    Math.round(s.settled_amount)],
     ['Total Revenue (Rp)',     s.total_revenue],
-    ['Avg Transaction (Rp)',   s.avg_trx_value],
+    ['Avg Transaction (Rp)',   Math.round(s.avg_trx_value)],
   ];
   const ws1 = XLSX.utils.aoa_to_sheet(kpiData);
   ws1['!cols'] = [{wch:30},{wch:20}];
@@ -752,13 +752,13 @@ function dlExcel() {
     ['Jumlah Merchant',             s.total_merchant],
     ['Total Trx',                   s.total_trx_success],
     ['Amount Trx',                  s.gmv],
-    ['MDR',                         -mdrX],
-    ['Chargeback',                  cbX ? -cbX : 0],
-    ['Representment',               repX],
-    ['Settle Dispute',              dispX ? -dispX : 0],
-    ['Settled Amount',              s.settled_amount],
-    ['Biaya Transfer Antar Bank',   -trfX],
-    ['*Amount Transfer to Merchant',amtX],
+    ['MDR',                         -Math.round(mdrX)],
+    ['Chargeback',                  cbX ? -Math.round(cbX) : 0],
+    ['Representment',               Math.round(repX)],
+    ['Settle Dispute',              dispX ? -Math.round(dispX) : 0],
+    ['Settled Amount',              Math.round(s.settled_amount)],
+    ['Biaya Transfer Antar Bank',   -Math.round(trfX)],
+    ['*Amount Transfer to Merchant',Math.round(amtX)],
   ];
   const ws5 = XLSX.utils.aoa_to_sheet(settleData);
   ws5['!cols'] = [{wch:35},{wch:22}];
@@ -777,13 +777,13 @@ function dlExcel() {
     ['Description', 'Yesterday', 'Month to Date', 'Year to Date'],
     ['Total Transaksi',   s.total_trx_success,  mtdTrxX,                            ytdTrxX],
     ['Amount (Rp)',       s.gmv,                 sumFX(mtdX,'gmv'),                  sumFX(ytdX,'gmv')],
-    ['MDR (Rp)',          mdrX,                  sumFX(mtdX,'total_mdr'),            sumFX(ytdX,'total_mdr')],
-    ['Chargeback (Rp)',   cbX||0,                sumFX(mtdX,'total_chargeback'),     sumFX(ytdX,'total_chargeback')],
-    ['Representment (Rp)',repX||0,               sumFX(mtdX,'total_representment'),  sumFX(ytdX,'total_representment')],
-    ['Biaya Transfer (Rp)',trfX,                 sumFX(mtdX,'total_transfer_fee'),   sumFX(ytdX,'total_transfer_fee')],
-    ['Settle Dispute (Rp)',dispX||0,             sumFX(mtdX,'total_dispute'),        sumFX(ytdX,'total_dispute')],
-    ['Settled Amount (Rp)',s.settled_amount,     sumFX(mtdX,'settled_amount'),       sumFX(ytdX,'settled_amount')],
-    ['Amount Transfer (Rp)',amtX,                sumFX(mtdX,'total_amount_transfer'),sumFX(ytdX,'total_amount_transfer')],
+    ['MDR (Rp)',          Math.round(mdrX),       Math.round(sumFX(mtdX,'total_mdr')),            Math.round(sumFX(ytdX,'total_mdr'))],
+    ['Chargeback (Rp)',   Math.round(cbX||0),     Math.round(sumFX(mtdX,'total_chargeback')),     Math.round(sumFX(ytdX,'total_chargeback'))],
+    ['Representment (Rp)',Math.round(repX||0),    Math.round(sumFX(mtdX,'total_representment')),  Math.round(sumFX(ytdX,'total_representment'))],
+    ['Biaya Transfer (Rp)',Math.round(trfX),      Math.round(sumFX(mtdX,'total_transfer_fee')),   Math.round(sumFX(ytdX,'total_transfer_fee'))],
+    ['Settle Dispute (Rp)',Math.round(dispX||0),  Math.round(sumFX(mtdX,'total_dispute')),        Math.round(sumFX(ytdX,'total_dispute'))],
+    ['Settled Amount (Rp)',Math.round(s.settled_amount), Math.round(sumFX(mtdX,'settled_amount')), Math.round(sumFX(ytdX,'settled_amount'))],
+    ['Amount Transfer (Rp)',Math.round(amtX),     Math.round(sumFX(mtdX,'total_amount_transfer')),Math.round(sumFX(ytdX,'total_amount_transfer'))],
   ];
   const ws6 = XLSX.utils.aoa_to_sheet(reportData);
   ws6['!cols'] = [{wch:30},{wch:20},{wch:20},{wch:20}];
