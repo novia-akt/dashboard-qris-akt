@@ -303,7 +303,7 @@ async function loadDateList() {
 async function loadDate(dateISO) {
   if (!dateISO) return;
   show('loadingPg');
-  document.getElementById('loadingTxt').textContent = `Memuat data ${dateISO}...`;
+  const _ltxt = document.getElementById('loadingTxt'); if(_ltxt) _ltxt.textContent = `Memuat data ${dateISO}...`;
   try {
     const [y,mo] = dateISO.split('-');
     const monthStart = `${y}-${mo}-01`;
