@@ -77,6 +77,32 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
 .footer{text-align:center;padding:14px;font-size:10px;color:var(--text3);border-top:1px solid var(--border);margin-top:8px}
 .date-nav{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:var(--r2);padding:4px 8px}
 .date-nav span{font-size:11px;color:var(--text2)}
+
+.mode-toggle{display:flex;background:rgba(27,43,75,0.08);border-radius:20px;padding:2px;border:1px solid #BFDBFE}
+.tog-btn{padding:4px 12px;font-size:11px;border-radius:18px;border:none;cursor:pointer;font-weight:500;transition:all 0.15s}
+.tog-active{background:#1B2B4B;color:#fff}
+.tog-inactive{background:transparent;color:#1B2B4B}
+.tog-inactive:hover{background:rgba(27,43,75,0.08)}
+#calPopup{position:absolute;right:0;top:calc(100% + 6px);background:var(--color-background-primary,#fff);border:1px solid #BFDBFE;border-radius:10px;box-shadow:0 4px 20px rgba(27,43,75,0.15);z-index:999;width:260px;padding:12px;font-family:'Plus Jakarta Sans',sans-serif}
+.cal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cal-title{font-size:12px;font-weight:600;color:#1B2B4B}
+.cal-nav{background:none;border:none;cursor:pointer;font-size:14px;color:#1B2B4B;padding:2px 6px;border-radius:4px}
+.cal-nav:hover{background:#EFF6FF}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-day-hdr{font-size:9px;color:#94A3B8;text-align:center;padding:2px 0;font-weight:500}
+.cal-day{font-size:11px;text-align:center;padding:5px 2px;border-radius:6px;cursor:pointer;color:#1B2B4B;border:none;background:none;width:100%}
+.cal-day:hover:not(:disabled){background:#EFF6FF}
+.cal-day.has-data{font-weight:600;color:#1B2B4B}
+.cal-day.selected{background:#1B2B4B!important;color:#fff!important}
+.cal-day.today{border:1px solid #BFDBFE;color:#2563EB}
+.cal-day:disabled{color:#CBD5E1;cursor:default}
+.cal-day.other-month{color:#CBD5E1}
+.month-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.month-btn{font-size:11px;padding:8px 4px;border-radius:6px;border:none;cursor:pointer;background:none;color:#1B2B4B;font-weight:500;text-align:center}
+.month-btn:hover:not(:disabled){background:#EFF6FF}
+.month-btn.has-data{font-weight:600;color:#1B2B4B}
+.month-btn.selected{background:#1B2B4B!important;color:#fff!important}
+.month-btn:disabled{color:#CBD5E1;cursor:default}
 @media(max-width:900px){.g4{grid-template-columns:1fr 1fr}.g2,.g2e{grid-template-columns:1fr}}
 @media(max-width:600px){
   .g4{grid-template-columns:1fr 1fr}
@@ -107,11 +133,16 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
     <span class="hdr-date-sub" id="hdrDateSub">Memuat data...</span>
   </div>
   <div class="hdr-right">
-    <div class="date-nav">
-      <span>📅 Tanggal:</span>
-      <select class="date-select" id="dateSelect" onchange="loadDate(this.value)">
-        <option value="">Memuat...</option>
-      </select>
+    <div class="mode-toggle">
+      <button class="tog-btn tog-active" id="togDaily" onclick="setMode('daily')">Daily</button>
+      <button class="tog-btn tog-inactive" id="togMonthly" onclick="setMode('monthly')">Monthly</button>
+    </div>
+    <div style="position:relative">
+      <button class="btn btn-ghost" id="calTrigger" onclick="toggleCal()">
+        <span id="calLabel">📅 Pilih Tanggal</span>
+        <span style="margin-left:4px;font-size:10px">▾</span>
+      </button>
+      <div id="calPopup" style="display:none"></div>
     </div>
     <button class="btn btn-ghost" id="btnXls" onclick="dlExcel()" style="display:none">↓ Excel</button>
     <button class="btn btn-primary" id="btnPdf" onclick="dlPDF()" style="display:none">↓ PDF</button>
@@ -242,6 +273,160 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
 // KONFIGURASI — ganti dengan nilai dari Supabase kamu
 // ============================================================
 const SUPABASE_URL = 'https://cjwxonoeszokjepkttnd.supabase.co';
+
+// ── MODE ────────────────────────────────────────────
+let currentMode = 'daily';   // 'daily' | 'monthly'
+let availDates  = [];        // ['2026-06-08', ...]
+let availMonths = [];        // ['2026-06', ...]
+let calYear = new Date().getFullYear();
+let calMonth = new Date().getMonth(); // 0-based
+let selectedDate  = '';
+let selectedMonth = '';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('togDaily').className   = 'tog-btn ' + (mode==='daily'   ? 'tog-active':'tog-inactive');
+  document.getElementById('togMonthly').className = 'tog-btn ' + (mode==='monthly' ? 'tog-active':'tog-inactive');
+  renderCal();
+  // Update label
+  if (mode==='daily')   document.getElementById('calLabel').textContent = selectedDate   ? fmtDateLabel(selectedDate)   : '📅 Pilih Tanggal';
+  if (mode==='monthly') document.getElementById('calLabel').textContent = selectedMonth  ? fmtMonthLabel(selectedMonth) : '📅 Pilih Bulan';
+}
+
+function fmtDateLabel(iso) {
+  if (!iso) return '📅 Pilih Tanggal';
+  const [y,m,d] = iso.split('-');
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `📅 ${parseInt(d)} ${MONTHS[parseInt(m)-1]} ${y}`;
+}
+function fmtMonthLabel(ym) {
+  if (!ym) return '📅 Pilih Bulan';
+  const [y,m] = ym.split('-');
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return `📅 ${MONTHS[parseInt(m)-1]} ${y}`;
+}
+
+function toggleCal() {
+  const pop = document.getElementById('calPopup');
+  if (pop.style.display === 'none') {
+    pop.style.display = 'block';
+    renderCal();
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', closeCal);
+    }, 50);
+  } else {
+    pop.style.display = 'none';
+  }
+}
+function closeCal(e) {
+  const pop = document.getElementById('calPopup');
+  const trigger = document.getElementById('calTrigger');
+  if (!pop.contains(e.target) && !trigger.contains(e.target)) {
+    pop.style.display = 'none';
+    document.removeEventListener('click', closeCal);
+  }
+}
+
+function renderCal() {
+  if (currentMode === 'daily') renderDailyCal();
+  else renderMonthlyCal();
+}
+
+function renderDailyCal() {
+  const pop = document.getElementById('calPopup');
+  const DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const today = new Date();
+
+  // First day of month
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth+1, 0).getDate();
+  const daysInPrev  = new Date(calYear, calMonth, 0).getDate();
+
+  let html = `
+    <div class="cal-hdr">
+      <button class="cal-nav" onclick="calNav(-1)">&#8249;</button>
+      <span class="cal-title">${MONTHS_LONG[calMonth]} ${calYear}</span>
+      <button class="cal-nav" onclick="calNav(1)">&#8250;</button>
+    </div>
+    <div class="cal-grid">
+      ${DAYS.map(d=>`<div class="cal-day-hdr">${d}</div>`).join('')}`;
+
+  // Prev month days
+  for (let i = firstDay-1; i >= 0; i--) {
+    html += `<button class="cal-day other-month" disabled>${daysInPrev-i}</button>`;
+  }
+  // Current month days
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const hasData = availDates.includes(iso);
+    const isToday = today.getFullYear()===calYear && today.getMonth()===calMonth && today.getDate()===d;
+    const isSel   = iso === selectedDate;
+    const cls     = ['cal-day', hasData?'has-data':'', isToday?'today':'', isSel?'selected':''].filter(Boolean).join(' ');
+    html += `<button class="${cls}" ${hasData?`onclick="pickDate('${iso}')"`:''} ${!hasData?'disabled':''}>${d}</button>`;
+  }
+  // Next month padding
+  const remaining = 42 - firstDay - daysInMonth;
+  for (let d = 1; d <= remaining && remaining < 7; d++) {
+    html += `<button class="cal-day other-month" disabled>${d}</button>`;
+  }
+  html += `</div>`;
+  pop.innerHTML = html;
+}
+
+function renderMonthlyCal() {
+  const pop = document.getElementById('calPopup');
+  const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const years = [...new Set(availMonths.map(m=>m.split('-')[0]))].sort().reverse();
+
+  let yearOpts = years.map(y=>`<option value="${y}" ${y==calYear?'selected':''}>${y}</option>`).join('');
+  let html = `
+    <div class="cal-hdr">
+      <span class="cal-title">Pilih Bulan</span>
+      <select style="font-size:11px;padding:2px 6px;border:1px solid #BFDBFE;border-radius:5px;color:#1B2B4B" onchange="calYear=parseInt(this.value);renderMonthlyCal()">${yearOpts}</select>
+    </div>
+    <div class="month-grid">`;
+
+  for (let m = 0; m < 12; m++) {
+    const ym  = `${calYear}-${String(m+1).padStart(2,'0')}`;
+    const hasData = availMonths.includes(ym);
+    const isSel   = ym === selectedMonth;
+    const cls = ['month-btn', hasData?'has-data':'', isSel?'selected':''].filter(Boolean).join(' ');
+    html += `<button class="${cls}" ${hasData?`onclick="pickMonth('${ym}')"`:''} ${!hasData?'disabled':''}>${MONTHS_SHORT[m]}</button>`;
+  }
+  html += `</div>`;
+  pop.innerHTML = html;
+}
+
+function calNav(dir) {
+  calMonth += dir;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  if (calMonth > 11){ calMonth = 0;  calYear++; }
+  renderDailyCal();
+}
+
+function pickDate(iso) {
+  selectedDate = iso;
+  document.getElementById('calLabel').textContent = fmtDateLabel(iso);
+  document.getElementById('calPopup').style.display = 'none';
+  document.removeEventListener('click', closeCal);
+  loadDate(iso);
+}
+
+function pickMonth(ym) {
+  selectedMonth = ym;
+  document.getElementById('calLabel').textContent = fmtMonthLabel(ym);
+  document.getElementById('calPopup').style.display = 'none';
+  document.removeEventListener('click', closeCal);
+  loadMonth(ym);
+}
+
+// Stub for monthly load (akan diisi nanti saat monthly report dibangun)
+async function loadMonth(ym) {
+  alert('Monthly report untuk ' + fmtMonthLabel(ym) + ' — coming soon!');
+}
+
 // Skeleton bars
 (function(){
   const h=[55,70,45,85,60,40,75,50,65,80,45,55,70,40,60,75,50,65,80,45,55,70,85,60];
