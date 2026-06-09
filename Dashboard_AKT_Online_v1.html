@@ -461,29 +461,6 @@ function show(id) {
   });
 }
 
-async function loadDateList() {
-  try {
-    const data = await supabaseFetch('daily_summary', 'select=report_date&order=report_date.desc&limit=90');
-    const sel = document.getElementById('dateSelect');
-    sel.innerHTML = '';
-    if (!data.length) {
-      sel.innerHTML = '<option value="">Belum ada data</option>';
-      show('noDataPg'); return;
-    }
-    data.forEach(row => {
-      const iso = row.report_date;
-      const [y,m,d] = iso.split('-');
-      const opt = document.createElement('option');
-      opt.value = iso;
-      opt.textContent = `${parseInt(d)} ${MONTHS[parseInt(m)-1]} ${y}`;
-      sel.appendChild(opt);
-    });
-    loadDate(data[0].report_date);
-  } catch(e) {
-    document.getElementById('errorMsg').textContent = `Error: ${e.message}`;
-    show('errorPg');
-  }
-}
 
 async function loadDate(dateISO) {
   if (!dateISO) return;
