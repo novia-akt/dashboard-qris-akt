@@ -4,35 +4,40 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Daily QRIS Transaction Dashboard — AKT</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231B2B4B'/%3E%3Cpolyline points='3,22 8,14 13,18 18,9 23,15 29,10' fill='none' stroke='%2310B981' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
   --navy:#1B2B4B;--blue:#2563EB;--green:#10B981;--red:#EF4444;--amber:#F59E0B;
   --bg:#F1F5F9;--surface:#fff;--surface2:#F8FAFC;--border:#E2E8F0;
   --text:#0F172A;--text2:#475569;--text3:#94A3B8;--r:10px;--r2:6px;
 }
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
-.hdr{background:#fff;border-bottom:2px solid var(--border);height:68px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 20px;position:sticky;top:0;z-index:100}
-.hdr-left{display:flex;align-items:center}
-.hdr-logo{height:44px;object-fit:contain}
-.hdr-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
-.hdr-title{font-size:14px;font-weight:600;color:var(--navy);white-space:nowrap}
-.hdr-date-sub{font-size:10px;color:var(--text3);font-family:'JetBrains Mono',monospace}
-.hdr-right{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
+.hdr{background:linear-gradient(135deg,#1B2B4B 0%,#243d6e 100%);border-bottom:none;height:72px;display:flex;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(27,43,75,0.18)}
+.hdr-left{display:flex;align-items:center;flex-shrink:0}
+.hdr-logo{height:40px;object-fit:contain;filter:brightness(0) invert(1)}
+.hdr-center{display:flex;flex-direction:column;justify-content:center;gap:2px;flex:1}
+.hdr-title{font-size:17px;font-weight:700;color:#fff;letter-spacing:-0.01em;white-space:nowrap}
+.hdr-date-sub{font-size:10px;color:rgba(255,255,255,0.55);font-family:'JetBrains Mono',monospace}
+.hdr-right{display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:var(--r2);font-size:12px;font-family:'Inter',sans-serif;cursor:pointer;border:none;font-weight:500;transition:background 0.15s}
-.btn-ghost{background:var(--surface2);color:var(--navy);border:1px solid var(--border)}
-.btn-ghost:hover{background:var(--border)}
-.btn-primary{background:var(--navy);color:#fff}
-.btn-primary:hover{background:#273d6b}
-select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var(--border);font-size:12px;font-family:'Inter',sans-serif;background:#fff;color:var(--navy);cursor:pointer}
-.loading-pg{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 68px);gap:16px}
-.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.loading-txt{font-size:14px;color:var(--text2)}
+.btn-ghost{background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.2)}
+.btn-ghost:hover{background:rgba(255,255,255,0.22)}
+.btn-primary{background:#2563EB;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid rgba(255,255,255,0.2);font-size:12px;font-family:'Plus Jakarta Sans',sans-serif;background:rgba(255,255,255,0.12);color:#fff;cursor:pointer}
+.loading-pg{display:none}
+.sk-wrap{padding:16px 20px}
+.sk{background:#E2E8F0;border-radius:6px;animation:skpulse 1.5s ease-in-out infinite}
+@keyframes skpulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.sk-hdr{background:linear-gradient(135deg,#d1d9e6 0%,#b8c4d8 100%);height:72px;margin-bottom:16px;border-radius:0}
+.sk-g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
+.sk-g2{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:10px}
+.sk-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
 .error-pg{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 68px);gap:12px;text-align:center;padding:2rem}
 .error-pg .icon{font-size:48px}
 .error-pg h2{font-size:18px;color:var(--navy)}
@@ -42,7 +47,7 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var
 .dash-header{margin-bottom:12px}
 .dash-header h1{font-size:19px;font-weight:700;color:var(--navy);margin-bottom:2px}
 .dash-header p{font-size:11px;color:var(--text2)}
-.analysis{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12px;color:#1E3A8A;line-height:1.8}
+.analysis{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:var(--r);padding:7px 14px;margin-bottom:12px;font-size:11px;color:#1E3A8A;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
 .g2{display:grid;grid-template-columns:1fr 2fr;gap:10px;margin-bottom:10px}
 .g2e{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
@@ -72,7 +77,23 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var
 .footer{text-align:center;padding:14px;font-size:10px;color:var(--text3);border-top:1px solid var(--border);margin-top:8px}
 .date-nav{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border);border-radius:var(--r2);padding:4px 8px}
 .date-nav span{font-size:11px;color:var(--text2)}
-@media(max-width:900px){.g4{grid-template-columns:1fr 1fr}.g2,.g2e{grid-template-columns:1fr}.hdr{grid-template-columns:auto 1fr auto}}
+@media(max-width:900px){.g4{grid-template-columns:1fr 1fr}.g2,.g2e{grid-template-columns:1fr}}
+@media(max-width:600px){
+  .g4{grid-template-columns:1fr 1fr}
+  .g2,.g2e{grid-template-columns:1fr}
+  .hdr{padding:0 12px;gap:8px;height:64px}
+  .hdr-logo{height:32px}
+  .hdr-title{font-size:13px}
+  .hdr-date-sub{display:none}
+  .hdr-right{gap:5px}
+  .btn{padding:5px 9px;font-size:11px}
+  select.date-select{padding:5px 8px;font-size:11px;max-width:130px}
+  .main{padding:10px 12px}
+  .kpi .val{font-size:18px}
+  .tbl th,.tbl td{padding:4px 5px}
+  .sk-g4{grid-template-columns:1fr 1fr}
+  .sk-g2{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -97,10 +118,36 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var
   </div>
 </header>
 
-<!-- LOADING -->
-<div class="loading-pg" id="loadingPg">
-  <div class="spinner"></div>
-  <div class="loading-txt" id="loadingTxt">Memuat data dari database...</div>
+<!-- SKELETON LOADING -->
+<div class="sk-wrap" id="loadingPg">
+  <div class="sk-g4">
+    <div class="sk-card"><div class="sk" style="width:60%;height:9px;margin-bottom:8px"></div><div class="sk" style="width:50%;height:22px"></div></div>
+    <div class="sk-card"><div class="sk" style="width:60%;height:9px;margin-bottom:8px"></div><div class="sk" style="width:50%;height:22px"></div></div>
+    <div class="sk-card"><div class="sk" style="width:60%;height:9px;margin-bottom:8px"></div><div class="sk" style="width:50%;height:22px"></div></div>
+    <div class="sk-card"><div class="sk" style="width:60%;height:9px;margin-bottom:8px"></div><div class="sk" style="width:50%;height:22px"></div></div>
+  </div>
+  <div class="sk-g4" style="margin-bottom:10px">
+    <div class="sk-card"><div class="sk" style="width:60%;height:9px;margin-bottom:8px"></div><div class="sk" style="width:50%;height:22px"></div></div>
+    <div class="sk-card"><div class="sk" style="width:60%;height:9px;margin-bottom:8px"></div><div class="sk" style="width:50%;height:22px"></div></div>
+    <div class="sk-card"><div class="sk" style="width:60%;height:9px;margin-bottom:8px"></div><div class="sk" style="width:50%;height:22px"></div></div>
+    <div class="sk-card"><div class="sk" style="width:60%;height:9px;margin-bottom:8px"></div><div class="sk" style="width:50%;height:22px"></div></div>
+  </div>
+  <div class="sk-g2">
+    <div class="sk-card" style="height:160px">
+      <div class="sk" style="width:40%;height:9px;margin-bottom:12px"></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="sk" style="height:9px;width:90%"></div>
+        <div class="sk" style="height:9px;width:80%"></div>
+        <div class="sk" style="height:9px;width:85%"></div>
+        <div class="sk" style="height:9px;width:70%"></div>
+      </div>
+    </div>
+    <div class="sk-card" style="height:160px">
+      <div class="sk" style="width:40%;height:9px;margin-bottom:10px"></div>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:100px" id="skBars"></div>
+    </div>
+  </div>
+  <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:12px">Memuat data dari database...</div>
 </div>
 
 <!-- ERROR -->
@@ -125,7 +172,9 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var
   </div>
 
   <div class="analysis" id="analysisBox" style="display:none">
-    <strong>💡 Daily Analysis Summary</strong> — <span id="analysisTxt"></span>
+    <span style="font-size:10px;font-weight:600;color:#1E3A8A;white-space:nowrap">📊 Daily Analysis</span>
+    <span style="width:1px;height:14px;background:#BFDBFE;flex-shrink:0"></span>
+    <span id="analysisTxt" style="font-size:11px;color:#1E3A8A"></span>
   </div>
 
   <div class="sec-lbl">📊 Performance Summary</div>
@@ -193,6 +242,12 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid var
 // KONFIGURASI — ganti dengan nilai dari Supabase kamu
 // ============================================================
 const SUPABASE_URL = 'https://cjwxonoeszokjepkttnd.supabase.co';
+// Skeleton bars
+(function(){
+  const h=[55,70,45,85,60,40,75,50,65,80,45,55,70,40,60,75,50,65,80,45,55,70,85,60];
+  const el=document.getElementById('skBars');
+  if(el) el.innerHTML=h.map(v=>`<div class="sk" style="width:10px;height:${v}%"></div>`).join('');
+})();
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqd3hvbm9lc3pva2plcGt0dG5kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0NTUyOTEsImV4cCI6MjA5NjAzMTI5MX0.jqkIoCl9g2nPWiNWyBrwMAcASEosb-lIKXc1hVVdgdg';
 // ============================================================
 
@@ -320,23 +375,50 @@ function renderDashboard(s, hourly, merchants, mtdData, ytdData) {
     hourSuccess[h.hour_of_day] = h.trx_success||0;
     hourFail[h.hour_of_day]    = h.trx_fail||0;
   });
-  const peakH = hourFail.indexOf(Math.max(...hourFail));
-  document.getElementById('peakHourBadge').textContent =
-    `Peak fail: ${String(peakH).padStart(2,'0')}.00–${String((peakH+1)%24).padStart(2,'0')}.00`;
+  // Peak hour logic
+  const peakSuccessH = hourSuccess.indexOf(Math.max(...hourSuccess));
+  const peakFailH    = hourFail.indexOf(Math.max(...hourFail));
+  const lowH         = hourSuccess.indexOf(Math.min(...hourSuccess.filter(v=>v>0)));
+  const p2 = s => String(s).padStart(2,'0');
+  document.getElementById('peakHourBadge').innerHTML =
+    `<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-size:9px;margin-right:4px">⚡ Peak: ${p2(peakSuccessH)}.00–${p2((peakSuccessH+1)%24)}.00</span>`+
+    `<span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:10px;font-size:9px">Fail: ${p2(peakFailH)}.00–${p2((peakFailH+1)%24)}.00</span>`;
+
+  // Color bars — highlight peak, dim rest
+  const bgSuccess = hourSuccess.map((_,i) =>
+    i===peakSuccessH ? 'rgba(16,185,129,0.95)' : 'rgba(16,185,129,0.35)');
+  const bgFail = hourFail.map((_,i) =>
+    i===peakFailH ? 'rgba(239,68,68,0.95)' : 'rgba(239,68,68,0.35)');
+
   if(window._ch) window._ch.destroy();
   window._ch = new Chart(document.getElementById('chartHour'), {
     type:'bar',
     data:{
-      labels:Array.from({length:24},(_,i)=>String(i).padStart(2,'0')),
+      labels:Array.from({length:24},(_,i)=>p2(i)),
       datasets:[
-        {label:'Success',data:hourSuccess,backgroundColor:'rgba(16,185,129,0.7)',borderRadius:2},
-        {label:'Fail',data:hourFail,backgroundColor:'rgba(239,68,68,0.8)',borderRadius:2}
+        {label:'Success',data:hourSuccess,backgroundColor:bgSuccess,borderRadius:2},
+        {label:'Fail',   data:hourFail,   backgroundColor:bgFail,   borderRadius:2}
       ]},
     options:{responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}}},
+      plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10}},
+        tooltip:{mode:'index',intersect:false,callbacks:{label:c=>`${c.dataset.label}: ${c.raw.toLocaleString('id-ID')}`}}},
       scales:{x:{stacked:true,ticks:{font:{size:9},maxRotation:0},grid:{display:false}},
               y:{stacked:true,ticks:{font:{size:9}},grid:{color:'rgba(0,0,0,0.04)'}}}}
   });
+
+  // Peak hour summary row
+  const avgPeakSuccess = Math.round(hourSuccess[peakSuccessH]);
+  const avgLow = Math.round(hourSuccess[lowH]);
+  const existingPeakRow = document.getElementById('peakSummaryRow');
+  if(existingPeakRow) existingPeakRow.remove();
+  const peakRow = document.createElement('div');
+  peakRow.id = 'peakSummaryRow';
+  peakRow.style.cssText = 'display:flex;gap:16px;margin-top:8px;padding-top:8px;border-top:1px solid #F1F5F9;flex-wrap:wrap';
+  peakRow.innerHTML =
+    `<span style="font-size:10px;color:var(--text2)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10B981;margin-right:4px"></span>Peak success: <strong>${p2(peakSuccessH)}.00–${p2((peakSuccessH+1)%24)}.00</strong> (${numFmt(avgPeakSuccess)} trx)</span>`+
+    `<span style="font-size:10px;color:var(--text2)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#EF4444;margin-right:4px"></span>Peak fail: <strong>${p2(peakFailH)}.00–${p2((peakFailH+1)%24)}.00</strong></span>`+
+    `<span style="font-size:10px;color:var(--text2)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#94A3B8;margin-right:4px"></span>Low activity: <strong>${p2(lowH)}.00–${p2((lowH+1)%24)}.00</strong> (${numFmt(avgLow)} trx)</span>`;
+  document.getElementById('chartHour').parentElement.after(peakRow);
 
   // Settlement Summary
   const mdr  = s.total_mdr  || 0;
