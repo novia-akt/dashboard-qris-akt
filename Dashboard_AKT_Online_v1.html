@@ -1037,6 +1037,29 @@ function dlExcel() {
   XLSX.writeFile(wb, `Daily_QRIS_Dashboard_AKT_${s.report_date.replace(/-/g,'')}.xlsx`);
 }
 
+// ── LOAD DATE LIST ─────────────────────────────────
+async function loadDateList() {
+  try {
+    const dates = await supabaseFetch('daily_summary','select=report_date&order=report_date.desc&limit=365');
+    if (!dates.length) { show('noDataPg'); return; }
+
+    availDates  = dates.map(r => r.report_date);
+    availMonths = [...new Set(dates.map(r => r.report_date.slice(0,7)))];
+
+    const latest = dates[0].report_date;
+    const [ly, lm] = latest.split('-');
+    calYear     = parseInt(ly);
+    calMonth    = parseInt(lm) - 1;
+    selectedDate = latest;
+
+    document.getElementById('calLabel').textContent = fmtDateLabel(latest);
+    await loadDate(latest);
+  } catch(e) {
+    console.error('loadDateList error:', e);
+    show('errorPg');
+  }
+}
+
 // Init
 loadDateList();
 </script>
