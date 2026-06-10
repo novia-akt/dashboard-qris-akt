@@ -138,11 +138,11 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
       <button class="tog-btn tog-inactive" id="togMonthly" onclick="setMode('monthly')">Monthly</button>
     </div>
     <div style="position:relative">
-      <button class="btn btn-ghost" id="calTrigger" onclick="toggleCal()">
+      <button class="btn btn-ghost" id="calTrigger" onclick="toggleCal(event)">
         <span id="calLabel">📅 Pilih Tanggal</span>
         <span style="margin-left:4px;font-size:10px">▾</span>
       </button>
-      <div id="calPopup" style="display:none"></div>
+      <div id="calPopup" style="display:none" onclick="event.stopPropagation()"></div>
     </div>
     <button class="btn btn-ghost" id="btnXls" onclick="dlExcel()" style="display:none">↓ Excel</button>
     <button class="btn btn-primary" id="btnPdf" onclick="dlPDF()" style="display:none">↓ PDF</button>
@@ -306,17 +306,18 @@ function fmtMonthLabel(ym) {
   return `📅 ${MONTHS[parseInt(m)-1]} ${y}`;
 }
 
-function toggleCal() {
+function toggleCal(e) {
+  if (e) e.stopPropagation();
   const pop = document.getElementById('calPopup');
   if (pop.style.display === 'none') {
     pop.style.display = 'block';
     renderCal();
-    // Close on outside click
     setTimeout(() => {
       document.addEventListener('click', closeCal);
     }, 50);
   } else {
     pop.style.display = 'none';
+    document.removeEventListener('click', closeCal);
   }
 }
 function closeCal(e) {
@@ -346,9 +347,9 @@ function renderDailyCal() {
 
   let html = `
     <div class="cal-hdr">
-      <button class="cal-nav" onclick="calNav(-1)">&#8249;</button>
+      <button class="cal-nav" onclick="calNav(-1,event)">&#8249;</button>
       <span class="cal-title">${MONTHS_LONG[calMonth]} ${calYear}</span>
-      <button class="cal-nav" onclick="calNav(1)">&#8250;</button>
+      <button class="cal-nav" onclick="calNav(1,event)">&#8250;</button>
     </div>
     <div class="cal-grid">
       ${DAYS.map(d=>`<div class="cal-day-hdr">${d}</div>`).join('')}`;
@@ -384,7 +385,7 @@ function renderMonthlyCal() {
   let html = `
     <div class="cal-hdr">
       <span class="cal-title">Pilih Bulan</span>
-      <select style="font-size:11px;padding:2px 6px;border:1px solid #BFDBFE;border-radius:5px;color:#1B2B4B" onchange="calYear=parseInt(this.value);renderMonthlyCal()">${yearOpts}</select>
+      <select style="font-size:11px;padding:2px 6px;border:1px solid #BFDBFE;border-radius:5px;color:#1B2B4B" onchange="event.stopPropagation();calYear=parseInt(this.value);renderMonthlyCal()">${yearOpts}</select>
     </div>
     <div class="month-grid">`;
 
@@ -399,7 +400,8 @@ function renderMonthlyCal() {
   pop.innerHTML = html;
 }
 
-function calNav(dir) {
+function calNav(dir, e) {
+  if (e) e.stopPropagation();
   calMonth += dir;
   if (calMonth < 0) { calMonth = 11; calYear--; }
   if (calMonth > 11){ calMonth = 0;  calYear++; }
