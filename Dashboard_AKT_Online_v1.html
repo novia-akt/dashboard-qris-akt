@@ -174,6 +174,10 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
     </div>
     <button class="btn btn-ghost" id="btnXls" onclick="dlExcel()" style="display:none">↓ Excel</button>
     <button class="btn btn-primary" id="btnPdf" onclick="dlPDF()" style="display:none">↓ PDF</button>
+    <div id="avbBtns" style="display:none;gap:8px;align-items:center">
+      <button class="btn btn-ghost" onclick="dlAvbExcel()">↓ Excel</button>
+      <button class="btn btn-primary" onclick="dlAvbPDF()">↓ PDF</button>
+    </div>
   </div>
 </header>
 
@@ -385,14 +389,16 @@ function switchPage(page) {
     // Show toggle & calendar
     document.getElementById('modeToggleWrap').style.display = 'flex';
     document.getElementById('calWrap').style.display = 'block';
+    document.getElementById('avbBtns').style.display = 'none';
   } else {
     // Show AvB page
     document.getElementById('mainDash').style.display = 'none';
     document.getElementById('loadingPg').style.display = 'none';
     document.getElementById('avbMain').style.display = 'block';
-    // Hide toggle & calendar, show month picker instead
+    // Hide rekon toggle, hide rekon calendar, show AvB buttons
     document.getElementById('modeToggleWrap').style.display = 'none';
     document.getElementById('calWrap').style.display = 'none';
+    document.getElementById('avbBtns').style.display = 'flex';
     loadAvb();
   }
 }
@@ -417,8 +423,13 @@ async function loadAvb() {
     // Ambil semua actual dari daily_summary (SUM per bulan)
     const ds = await supabaseFetch('daily_summary', 'select=report_date,total_revenue&order=report_date.asc&limit=500');
 
+    // Store untuk PDF/Excel
+    window._avbBf = bf;
+    window._avbDs = ds;
+
     // Group actual per bulan
     const actualByMonth = {};
+    window._avbActual = actualByMonth;
     ds.forEach(r => {
       const ym = r.report_date.slice(0,7);
       if (!actualByMonth[ym]) actualByMonth[ym] = 0;
@@ -428,7 +439,15 @@ async function loadAvb() {
     // Cari bulan berjalan
     const now = new Date();
     const curYM = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
-    const curDay = now.getDate();
+
+    // Hari rekon = hari terakhir yang ada datanya di bulan ini
+    // Parse tanggal langsung dari string ISO (YYYY-MM-DD) untuk hindari timezone shift
+    const dsThisMonth = ds.filter(r => r.report_date.slice(0,7) === curYM);
+    const lastRekonISO = dsThisMonth.length > 0
+      ? dsThisMonth[dsThisMonth.length-1].report_date
+      : null;
+    // Ambil hari langsung dari string: "2026-06-10" → 10
+    const curDay = lastRekonISO ? parseInt(lastRekonISO.split('-')[2]) : new Date().getDate();
 
     // Update subtitle
     const mo = now.getMonth();
@@ -444,6 +463,7 @@ async function loadAvb() {
       const forecast = parseFloat(bfCur.forecast);
       const bpd      = parseFloat(bfCur.budget_per_day);
       const fpd      = parseFloat(bfCur.forecast_per_day);
+      const daysInMonth = new Date(yr, mo+1, 0).getDate();
 
       // KPI Cards
       document.getElementById('avbBudget').textContent   = rpFmt(budget);
@@ -456,27 +476,27 @@ async function loadAvb() {
       document.getElementById('avbAchieve').textContent = achieve.toFixed(2) + '%';
 
       // Progress bar
-      const daysInMonth = new Date(yr, mo+1, 0).getDate();
       document.getElementById('avbProgTitle').textContent = `Progress Budget ${MONTHS_ID[mo]} ${yr}`;
       document.getElementById('avbProgBadge').textContent = `${curDay} dari ${daysInMonth} hari berjalan`;
       document.getElementById('avbProgLabel').textContent = `${achieve.toFixed(2)}% tercapai dari ${rpFmt(budget)}`;
       document.getElementById('avbProgFill').style.width = Math.min(achieve,100) + '%';
-      // Warna progress
-      const pct = achieve;
       const expPct = (curDay/daysInMonth)*100;
       document.getElementById('avbProgFill').style.background =
-        pct >= expPct ? '#10B981' : pct >= expPct*0.85 ? '#F59E0B' : '#EF4444';
+        achieve >= expPct ? '#10B981' : achieve >= expPct*0.85 ? '#F59E0B' : '#EF4444';
 
       // Tabel row 1 & 2
       document.getElementById('avbTblMonth').textContent = `${MONTHS_ID[mo]} ${yr}`;
-      const budgetSoFar = bpd * curDay;
+      const budgetSoFar   = bpd * curDay;
       const forecastSoFar = fpd * curDay;
-      const pct1 = budget > 0 ? ((budgetSoFar - actualMtd)/budget*100) : 0;
 
-      // Projected full month = actual + sisa hari pakai forecast
+      // Row 1: Below/Above = (budgetSoFar - actual) / budgetSoFar × 100
+      const pct1 = budgetSoFar > 0 ? ((budgetSoFar - actualMtd) / budgetSoFar * 100) : 0;
+
+      // Row 2: Projected = actual + sisa hari × forecast_per_day
       const remainDays = daysInMonth - curDay;
-      const projected = actualMtd + (fpd * remainDays);
-      const pct2 = budget > 0 ? ((budget - projected)/budget*100) : 0;
+      const projected   = actualMtd + (fpd * remainDays);
+      // Row 2: Below/Above = (budget - projected) / budget × 100
+      const pct2 = budget > 0 ? ((budget - projected) / budget * 100) : 0;
 
       document.getElementById('avbTblBody').innerHTML = `
         <tr class="alt">
@@ -520,7 +540,11 @@ async function loadAvb() {
         rowClass = '';
       } else if (isCur) {
         const dIM = new Date(parseInt(y), mIdx+1, 0).getDate();
-        const projected = actual + (parseFloat(b.forecast_per_day) * (dIM - curDay));
+        // Ambil hari rekon terakhir untuk bulan ini dari data aktual
+        const dsTM = ds.filter(r => r.report_date.slice(0,7) === ym);
+        const lastDayTM = dsTM.length > 0 ? parseInt(dsTM[dsTM.length-1].report_date.split('-')[2]) : 0;
+        const rekonDay = isCur ? curDay : lastDayTM;
+        const projected = actual + (parseFloat(b.forecast_per_day) * (dIM - rekonDay));
         actualDisp = rpFmt(projected);
         pct = budget > 0 ? ((budget-projected)/budget*100) : 0;
         statusHtml = '<span class="status-badge sb-track">Berjalan</span>';
@@ -1335,6 +1359,227 @@ async function loadDateList() {
     console.error('loadDateList error:', e);
     show('errorPg');
   }
+}
+
+// ── AVB EXCEL ───────────────────────────────────────
+function dlAvbExcel() {
+  const bf = window._avbBf;
+  const ds = window._avbDs;
+  const actualByMonth = window._avbActual;
+  if (!bf || !ds) return alert('Data belum tersedia');
+
+  const wb = XLSX.utils.book_new();
+  const now = new Date();
+  const curYM = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  const dsThisMonth = ds.filter(r => r.report_date.slice(0,7) === curYM);
+  const lastISO = dsThisMonth.length > 0 ? dsThisMonth[dsThisMonth.length-1].report_date : null;
+  const curDay = lastISO ? parseInt(lastISO.split('-')[2]) : now.getDate();
+  const mo = now.getMonth();
+  const yr = now.getFullYear();
+  const MONTHS_ID2 = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const bfCur = bf.find(b => b.month === curYM);
+
+  // Sheet 1: AvB Bulan Berjalan
+  if (bfCur) {
+    const budget = parseFloat(bfCur.budget);
+    const bpd    = parseFloat(bfCur.budget_per_day);
+    const fpd    = parseFloat(bfCur.forecast_per_day);
+    const actual = actualByMonth[curYM] || 0;
+    const dIM    = new Date(yr, mo+1, 0).getDate();
+    const bSoFar = bpd * curDay;
+    const fSoFar = fpd * curDay;
+    const pct1   = bSoFar > 0 ? ((bSoFar - actual)/bSoFar*100) : 0;
+    const proj   = actual + (fpd * (dIM - curDay));
+    const pct2   = budget > 0 ? ((budget - proj)/budget*100) : 0;
+
+    const ws1data = [
+      ['Actual vs Budget — AKT'],
+      [`${MONTHS_ID2[mo]} ${yr}`],
+      [],
+      ['Keterangan','Budget','Forecast','Actual','Below/Above (%)'],
+      [`As of ${curDay} ${MONTHS_ID2[mo]} ${yr}`, bSoFar, fSoFar, actual, pct1.toFixed(2)+'%'],
+      [`${dIM} ${MONTHS_ID2[mo]} ${yr}`,          budget,  parseFloat(bfCur.forecast), proj, pct2.toFixed(2)+'%'],
+    ];
+    const ws1 = XLSX.utils.aoa_to_sheet(ws1data);
+    ws1['!cols'] = [{wch:30},{wch:20},{wch:20},{wch:20},{wch:15}];
+    XLSX.utils.book_append_sheet(wb, ws1, `AvB ${MONTHS_ID2[mo]} ${yr}`);
+  }
+
+  // Sheet 2: Monthly Summary
+  const ws2data = [['Monthly Summary — Actual vs Budget 2026'],[]
+    ,['Bulan','Budget','Forecast','Actual / Projected','Below/Above (%)','Status']];
+  bf.forEach(b => {
+    const ym     = b.month;
+    const [y,m]  = ym.split('-');
+    const mIdx   = parseInt(m)-1;
+    const budget = parseFloat(b.budget);
+    const fore   = parseFloat(b.forecast);
+    const actual = actualByMonth[ym] || 0;
+    const isCur  = ym === curYM;
+    const isPast = ym < curYM;
+    let actualDisp, pctVal, status;
+    if (isPast) {
+      actualDisp = actual;
+      pctVal = budget > 0 ? ((budget-actual)/budget*100).toFixed(2)+'%' : '—';
+      status = actual >= budget ? 'Above' : 'Below';
+    } else if (isCur) {
+      const dIM2 = new Date(parseInt(y), mIdx+1, 0).getDate();
+      const proj = actual + (parseFloat(b.forecast_per_day) * (dIM2 - curDay));
+      actualDisp = proj;
+      pctVal = budget > 0 ? ((budget-proj)/budget*100).toFixed(2)+'%' : '—';
+      status = 'Berjalan';
+    } else {
+      actualDisp = '—'; pctVal = '—'; status = 'Belum';
+    }
+    ws2data.push([MONTHS_ID2[mIdx]+' '+y, budget, fore, actualDisp, pctVal, status]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(ws2data);
+  ws2['!cols'] = [{wch:18},{wch:18},{wch:18},{wch:20},{wch:16},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Monthly Summary');
+
+  XLSX.writeFile(wb, `AvB_AKT_${curYM.replace('-','')}.xlsx`);
+}
+
+// ── AVB PDF ──────────────────────────────────────────
+function dlAvbPDF() {
+  const bf = window._avbBf;
+  const ds = window._avbDs;
+  const actualByMonth = window._avbActual;
+  if (!bf || !ds) return alert('Data belum tersedia');
+
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+  const W=210, M=14; let y=0;
+  const now = new Date();
+  const curYM = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  const dsThisMonth = ds.filter(r => r.report_date.slice(0,7) === curYM);
+  const lastISO = dsThisMonth.length > 0 ? dsThisMonth[dsThisMonth.length-1].report_date : null;
+  const curDay = lastISO ? parseInt(lastISO.split('-')[2]) : now.getDate();
+  const mo = now.getMonth();
+  const yr = now.getFullYear();
+  const MONTHS_ID2 = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const bfCur = bf.find(b => b.month === curYM);
+
+  // Header
+  doc.setFillColor(27,43,75); doc.rect(0,0,W,24,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(13); doc.setFont('helvetica','bold');
+  doc.text('Actual vs Budget — AKT', W/2, 11, {align:'center'});
+  doc.setFontSize(8); doc.setFont('helvetica','normal');
+  doc.text(`Data per ${curDay} ${MONTHS_ID2[mo]} ${yr}`, W/2, 18, {align:'center'});
+  y = 32;
+
+  if (bfCur) {
+    const budget = parseFloat(bfCur.budget);
+    const bpd    = parseFloat(bfCur.budget_per_day);
+    const fpd    = parseFloat(bfCur.forecast_per_day);
+    const actual = actualByMonth[curYM] || 0;
+    const dIM    = new Date(yr, mo+1, 0).getDate();
+    const achieve = budget > 0 ? (actual/budget*100) : 0;
+
+    // KPI row
+    const kpis = [
+      ['Budget', `Rp ${Math.round(budget).toLocaleString('id-ID')}`],
+      ['Forecast', `Rp ${Math.round(parseFloat(bfCur.forecast)).toLocaleString('id-ID')}`],
+      ['Actual MTD', `Rp ${Math.round(actual).toLocaleString('id-ID')}`],
+      ['Achievement', achieve.toFixed(2)+'%'],
+    ];
+    const kW = (W-M*2)/4;
+    kpis.forEach(([lbl,val],i) => {
+      const x = M + i*kW;
+      doc.setFillColor(239,246,255); doc.rect(x, y-3, kW-2, 16, 'F');
+      doc.setTextColor(100,116,139); doc.setFontSize(7); doc.setFont('helvetica','normal');
+      doc.text(lbl.toUpperCase(), x+2, y+2);
+      doc.setTextColor(27,43,75); doc.setFontSize(9); doc.setFont('helvetica','bold');
+      doc.text(val, x+2, y+10);
+    });
+    y += 22;
+
+    // Tabel AvB
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+    doc.text(`Actual vs Budget — ${MONTHS_ID2[mo]} ${yr}`, M, y); y += 5;
+    doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('Keterangan', M+2, y+1);
+    doc.text('Budget', M+70, y+1, {align:'right'});
+    doc.text('Forecast', M+110, y+1, {align:'right'});
+    doc.text('Actual', M+150, y+1, {align:'right'});
+    doc.text('Below/Above', M+178, y+1, {align:'right'});
+    y += 6;
+
+    const bSoFar = bpd * curDay;
+    const fSoFar = fpd * curDay;
+    const pct1   = bSoFar > 0 ? ((bSoFar - actual)/bSoFar*100) : 0;
+    const proj   = actual + (fpd * (dIM - curDay));
+    const pct2   = budget > 0 ? ((budget - proj)/budget*100) : 0;
+    const avbRows = [
+      [`As of ${curDay} ${MONTHS_ID2[mo]} ${yr}`, bSoFar, fSoFar, actual, pct1.toFixed(2)+'%'],
+      [`${dIM} ${MONTHS_ID2[mo]} ${yr}`, budget, parseFloat(bfCur.forecast), proj, pct2.toFixed(2)+'%'],
+    ];
+    avbRows.forEach(([k,b,f,a,p], i) => {
+      if (i===1) doc.setFillColor(189,215,238); else doc.setFillColor(i%2===0?248:255,i%2===0?250:255,i%2===0?252:255);
+      doc.rect(M, y-3, W-M*2, 6, 'F');
+      doc.setTextColor(15,23,42); doc.setFont('helvetica', i===1?'bold':'normal'); doc.setFontSize(7);
+      doc.text(k, M+2, y+1);
+      doc.text('Rp '+Math.round(b).toLocaleString('id-ID'), M+70, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(f).toLocaleString('id-ID'), M+110, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(a).toLocaleString('id-ID'), M+150, y+1, {align:'right'});
+      doc.text(p, M+178, y+1, {align:'right'});
+      y += 6;
+    });
+    y += 8;
+
+    // Monthly Summary
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+    doc.text('Monthly Summary — Actual vs Budget 2026', M, y); y += 5;
+    doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('Bulan', M+2, y+1);
+    doc.text('Budget', M+60, y+1, {align:'right'});
+    doc.text('Forecast', M+100, y+1, {align:'right'});
+    doc.text('Actual/Projected', M+148, y+1, {align:'right'});
+    doc.text('Below/Above', M+170, y+1, {align:'right'});
+    doc.text('Status', M+178, y+1, {align:'right'});
+    y += 6;
+
+    bf.forEach((b2,i) => {
+      const ym2    = b2.month;
+      const [y2,m2] = ym2.split('-');
+      const mIdx2  = parseInt(m2)-1;
+      const bud2   = parseFloat(b2.budget);
+      const fore2  = parseFloat(b2.forecast);
+      const act2   = actualByMonth[ym2] || 0;
+      const isCur2 = ym2 === curYM;
+      const isPast2 = ym2 < curYM;
+      let dispAct, pctTxt, statTxt;
+      if (isPast2) {
+        dispAct = act2; pctTxt = bud2>0?((bud2-act2)/bud2*100).toFixed(2)+'%':'—';
+        statTxt = act2>=bud2?'Above':'Below';
+      } else if (isCur2) {
+        const dIM2 = new Date(parseInt(y2), mIdx2+1, 0).getDate();
+        const pr2 = act2 + (parseFloat(b2.forecast_per_day)*(dIM2-curDay));
+        dispAct = pr2; pctTxt = bud2>0?((bud2-pr2)/bud2*100).toFixed(2)+'%':'—';
+        statTxt = 'Berjalan';
+      } else { dispAct=0; pctTxt='—'; statTxt='Belum'; }
+
+      if (y > 270) { doc.addPage(); y=20; }
+      doc.setFillColor(isCur2?255:i%2===0?248:255, isCur2?251:i%2===0?250:255, isCur2?235:i%2===0?252:255);
+      doc.rect(M, y-3, W-M*2, 6, 'F');
+      doc.setTextColor(15,23,42); doc.setFont('helvetica', isCur2?'bold':'normal'); doc.setFontSize(7);
+      doc.text(MONTHS_ID2[mIdx2]+' '+y2, M+2, y+1);
+      doc.text('Rp '+Math.round(bud2).toLocaleString('id-ID'), M+60, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(fore2).toLocaleString('id-ID'), M+100, y+1, {align:'right'});
+      doc.text(dispAct?'Rp '+Math.round(dispAct).toLocaleString('id-ID'):'—', M+148, y+1, {align:'right'});
+      doc.text(pctTxt, M+170, y+1, {align:'right'});
+      doc.text(statTxt, M+178, y+1, {align:'right'});
+      y += 6;
+    });
+  }
+
+  // Footer
+  doc.setFillColor(27,43,75); doc.rect(0,284,W,13,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','normal');
+  doc.text(`Auto-generated — Paycloud × AKT — ${curDay} ${MONTHS_ID2[mo]} ${yr}`, W/2, 292, {align:'center'});
+  doc.save(`AvB_AKT_${curYM.replace('-','')}.pdf`);
 }
 
 // Init
