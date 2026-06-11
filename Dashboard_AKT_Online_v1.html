@@ -58,6 +58,10 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
 .avb-tbl tr.alt td{background:var(--surface2)}
 .avb-tbl tr.tot td{background:#DBEAFE;font-weight:600}
 .avb-tbl tr.cur td{background:#FFFBEB}
+.avb-mode-toggle{display:flex;background:rgba(27,43,75,0.08);border-radius:20px;padding:2px;border:1px solid #BFDBFE}
+.avb-tog-btn{padding:4px 12px;font-size:11px;border-radius:18px;border:none;cursor:pointer;font-weight:500;transition:all 0.15s}
+.avb-tog-a{background:#1B2B4B;color:#fff}
+.avb-tog-i{background:transparent;color:#1B2B4B}
 .status-badge{font-size:9px;padding:2px 8px;border-radius:10px;font-weight:600}
 .sb-below{background:#FEE2E2;color:#991B1B}
 .sb-above{background:#DCFCE7;color:#166534}
@@ -175,6 +179,17 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
     <button class="btn btn-ghost" id="btnXls" onclick="dlExcel()" style="display:none">↓ Excel</button>
     <button class="btn btn-primary" id="btnPdf" onclick="dlPDF()" style="display:none">↓ PDF</button>
     <div id="avbBtns" style="display:none;gap:8px;align-items:center">
+      <div class="avb-mode-toggle">
+        <button class="avb-tog-btn avb-tog-a" id="avbTogDaily" onclick="setAvbMode('daily')">Daily</button>
+        <button class="avb-tog-btn avb-tog-i" id="avbTogMonthly" onclick="setAvbMode('monthly')">Monthly</button>
+      </div>
+      <div style="position:relative">
+        <button class="btn btn-ghost" id="avbCalTrigger" onclick="toggleAvbCal(event)">
+          <span id="avbCalLabel">📅 Pilih Tanggal</span>
+          <span style="margin-left:4px;font-size:10px">▾</span>
+        </button>
+        <div id="avbCalPopup" style="display:none" onclick="event.stopPropagation()"></div>
+      </div>
       <button class="btn btn-ghost" onclick="dlAvbExcel()">↓ Excel</button>
       <button class="btn btn-primary" onclick="dlAvbPDF()">↓ PDF</button>
     </div>
@@ -390,14 +405,21 @@ function switchPage(page) {
     document.getElementById('modeToggleWrap').style.display = 'flex';
     document.getElementById('calWrap').style.display = 'block';
     document.getElementById('avbBtns').style.display = 'none';
+    // Restore rekon buttons only if data is loaded
+    if (window._lastData) {
+      document.getElementById('btnXls').style.display = 'inline-flex';
+      document.getElementById('btnPdf').style.display = 'inline-flex';
+    }
   } else {
     // Show AvB page
     document.getElementById('mainDash').style.display = 'none';
     document.getElementById('loadingPg').style.display = 'none';
     document.getElementById('avbMain').style.display = 'block';
-    // Hide rekon toggle, hide rekon calendar, show AvB buttons
+    // Hide rekon controls, show AvB buttons
     document.getElementById('modeToggleWrap').style.display = 'none';
     document.getElementById('calWrap').style.display = 'none';
+    document.getElementById('btnXls').style.display = 'none';
+    document.getElementById('btnPdf').style.display = 'none';
     document.getElementById('avbBtns').style.display = 'flex';
     loadAvb();
   }
@@ -423,9 +445,11 @@ async function loadAvb() {
     // Ambil semua actual dari daily_summary (SUM per bulan)
     const ds = await supabaseFetch('daily_summary', 'select=report_date,total_revenue&order=report_date.asc&limit=500');
 
-    // Store untuk PDF/Excel
+    // Store untuk PDF/Excel dan calendar
     window._avbBf = bf;
     window._avbDs = ds;
+    window._avbAvailDates  = ds.map(r => r.report_date);
+    window._avbAvailMonths = [...new Set(ds.map(r => r.report_date.slice(0,7)))];
 
     // Group actual per bulan
     const actualByMonth = {};
@@ -439,6 +463,8 @@ async function loadAvb() {
     // Cari bulan berjalan
     const now = new Date();
     const curYM = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    avbCalYear = now.getFullYear();
+    avbCalMonth = now.getMonth();
 
     // Hari rekon = hari terakhir yang ada datanya di bulan ini
     // Parse tanggal langsung dari string ISO (YYYY-MM-DD) untuk hindari timezone shift
@@ -453,6 +479,8 @@ async function loadAvb() {
     const mo = now.getMonth();
     const yr = now.getFullYear();
     document.getElementById('avbSubtitle').textContent = `Data per ${curDay} ${MONTHS_ID[mo]} ${yr}`;
+    avbSelectedDate = lastRekonISO || '';
+    if (lastRekonISO) document.getElementById('avbCalLabel').textContent = fmtDateLabel(lastRekonISO);
 
     // Cari data bulan ini
     const bfCur = bf.find(b => b.month === curYM);
@@ -1359,6 +1387,239 @@ async function loadDateList() {
     console.error('loadDateList error:', e);
     show('errorPg');
   }
+}
+
+// ── AVB MODE & CALENDAR ─────────────────────────────
+let avbMode = 'daily';
+let avbSelectedDate  = '';
+let avbSelectedMonth = '';
+let avbCalYear  = new Date().getFullYear();
+let avbCalMonth = new Date().getMonth();
+
+function setAvbMode(mode) {
+  avbMode = mode;
+  document.getElementById('avbTogDaily').className   = 'avb-tog-btn ' + (mode==='daily'  ?'avb-tog-a':'avb-tog-i');
+  document.getElementById('avbTogMonthly').className = 'avb-tog-btn ' + (mode==='monthly'?'avb-tog-a':'avb-tog-i');
+  renderAvbCal();
+  const lbl = mode==='daily'
+    ? (avbSelectedDate  ? fmtDateLabel(avbSelectedDate)  : '📅 Pilih Tanggal')
+    : (avbSelectedMonth ? fmtMonthLabel(avbSelectedMonth): '📅 Pilih Bulan');
+  document.getElementById('avbCalLabel').textContent = lbl;
+}
+
+function toggleAvbCal(e) {
+  if (e) e.stopPropagation();
+  const pop = document.getElementById('avbCalPopup');
+  if (pop.style.display === 'none') {
+    pop.style.display = 'block';
+    renderAvbCal();
+    setTimeout(() => document.addEventListener('click', closeAvbCal), 50);
+  } else {
+    pop.style.display = 'none';
+    document.removeEventListener('click', closeAvbCal);
+  }
+}
+function closeAvbCal(e) {
+  const pop = document.getElementById('avbCalPopup');
+  const trigger = document.getElementById('avbCalTrigger');
+  if (!pop.contains(e.target) && !trigger.contains(e.target)) {
+    pop.style.display = 'none';
+    document.removeEventListener('click', closeAvbCal);
+  }
+}
+
+function renderAvbCal() {
+  if (avbMode === 'daily') renderAvbDailyCal();
+  else renderAvbMonthlyCal();
+}
+
+function renderAvbDailyCal() {
+  const pop = document.getElementById('avbCalPopup');
+  const availDates = window._avbAvailDates || [];
+  const DAYS = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const today = new Date();
+  const firstDay = new Date(avbCalYear, avbCalMonth, 1).getDay();
+  const daysInMonth = new Date(avbCalYear, avbCalMonth+1, 0).getDate();
+  const daysInPrev  = new Date(avbCalYear, avbCalMonth, 0).getDate();
+
+  let html = `<div class="cal-hdr">
+    <button class="cal-nav" onclick="avbCalNav(-1,event)">&#8249;</button>
+    <span class="cal-title">${MONTHS_LONG[avbCalMonth]} ${avbCalYear}</span>
+    <button class="cal-nav" onclick="avbCalNav(1,event)">&#8250;</button>
+  </div><div class="cal-grid">${DAYS.map(d=>`<div class="cal-day-hdr">${d}</div>`).join('')}`;
+
+  for (let i=firstDay-1;i>=0;i--) html+=`<button class="cal-day other-month" disabled>${daysInPrev-i}</button>`;
+  for (let d=1;d<=daysInMonth;d++) {
+    const iso=`${avbCalYear}-${String(avbCalMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const hasData=availDates.includes(iso);
+    const isToday=today.getFullYear()===avbCalYear&&today.getMonth()===avbCalMonth&&today.getDate()===d;
+    const isSel=iso===avbSelectedDate;
+    const cls=['cal-day',hasData?'has-data':'',isToday?'today':'',isSel?'selected':''].filter(Boolean).join(' ');
+    html+=`<button class="${cls}" ${hasData?`onclick="pickAvbDate('${iso}')"`:'disabled'}>${d}</button>`;
+  }
+  html+='</div>';
+  pop.innerHTML=html;
+}
+
+function renderAvbMonthlyCal() {
+  const pop = document.getElementById('avbCalPopup');
+  const availMonths = window._avbAvailMonths || [];
+  const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const years = [...new Set(availMonths.map(m=>m.split('-')[0]))].sort().reverse();
+  let yearOpts = years.map(y=>`<option value="${y}" ${y==avbCalYear?'selected':''}>${y}</option>`).join('');
+  let html=`<div class="cal-hdr">
+    <span class="cal-title">Pilih Bulan</span>
+    <select style="font-size:11px;padding:2px 6px;border:1px solid #BFDBFE;border-radius:5px;color:#1B2B4B" onchange="event.stopPropagation();avbCalYear=parseInt(this.value);renderAvbMonthlyCal()">${yearOpts}</select>
+  </div><div class="month-grid">`;
+  for(let m=0;m<12;m++){
+    const ym=`${avbCalYear}-${String(m+1).padStart(2,'0')}`;
+    const hasData=availMonths.includes(ym);
+    const isSel=ym===avbSelectedMonth;
+    const cls=['month-btn',hasData?'has-data':'',isSel?'selected':''].filter(Boolean).join(' ');
+    html+=`<button class="${cls}" ${hasData?`onclick="pickAvbMonth('${ym}')"`:'disabled'}>${MONTHS_SHORT[m]}</button>`;
+  }
+  html+='</div>';
+  pop.innerHTML=html;
+}
+
+function avbCalNav(dir,e) {
+  if(e) e.stopPropagation();
+  avbCalMonth+=dir;
+  if(avbCalMonth<0){avbCalMonth=11;avbCalYear--;}
+  if(avbCalMonth>11){avbCalMonth=0;avbCalYear++;}
+  renderAvbDailyCal();
+}
+
+function pickAvbDate(iso) {
+  avbSelectedDate = iso;
+  document.getElementById('avbCalLabel').textContent = fmtDateLabel(iso);
+  document.getElementById('avbCalPopup').style.display = 'none';
+  document.removeEventListener('click', closeAvbCal);
+  loadAvbForDate(iso);
+}
+
+function pickAvbMonth(ym) {
+  avbSelectedMonth = ym;
+  document.getElementById('avbCalLabel').textContent = fmtMonthLabel(ym);
+  document.getElementById('avbCalPopup').style.display = 'none';
+  document.removeEventListener('click', closeAvbCal);
+  loadAvbForMonth(ym);
+}
+
+// Load AvB untuk tanggal spesifik
+async function loadAvbForDate(iso) {
+  const bf = window._avbBf;
+  const ds = window._avbDs;
+  if (!bf || !ds) return;
+  const actualByMonth = window._avbActual;
+  const [y,m,d] = iso.split('-');
+  const ym = `${y}-${m}`;
+  const day = parseInt(d);
+  const mo  = parseInt(m)-1;
+  const yr  = parseInt(y);
+  const bfCur = bf.find(b=>b.month===ym);
+  if (!bfCur) return;
+
+  // Actual s.d. tanggal ini = SUM revenue dari tanggal 1 s.d. iso
+  const actualSoFar = ds
+    .filter(r=>r.report_date>=`${y}-${m}-01` && r.report_date<=iso)
+    .reduce((a,r)=>a+parseFloat(r.total_revenue||0),0);
+
+  const budget   = parseFloat(bfCur.budget);
+  const forecast = parseFloat(bfCur.forecast);
+  const bpd      = parseFloat(bfCur.budget_per_day);
+  const fpd      = parseFloat(bfCur.forecast_per_day);
+  const dIM      = new Date(yr,mo+1,0).getDate();
+  const MONTHS_ID2 = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+  document.getElementById('avbSubtitle').textContent = `Data per ${day} ${MONTHS_ID2[mo]} ${yr}`;
+  document.getElementById('avbBudget').textContent   = rpFmt(budget);
+  document.getElementById('avbForecast').textContent = rpFmt(forecast);
+  document.getElementById('avbActual').textContent   = rpFmt(actualSoFar);
+  document.getElementById('avbBudgetSub').textContent   = `Target ${MONTHS_ID2[mo]} ${yr}`;
+  document.getElementById('avbForecastSub').textContent = `Forecast ${MONTHS_ID2[mo]} ${yr}`;
+  document.getElementById('avbActualSub').textContent   = `s.d. ${day} ${MONTHS_ID2[mo]} ${yr}`;
+  const achieve = budget>0?(actualSoFar/budget*100):0;
+  document.getElementById('avbAchieve').textContent = achieve.toFixed(2)+'%';
+
+  document.getElementById('avbProgTitle').textContent = `Progress Budget ${MONTHS_ID2[mo]} ${yr}`;
+  document.getElementById('avbProgBadge').textContent = `${day} dari ${dIM} hari berjalan`;
+  document.getElementById('avbProgLabel').textContent = `${achieve.toFixed(2)}% tercapai dari ${rpFmt(budget)}`;
+  document.getElementById('avbProgFill').style.width = Math.min(achieve,100)+'%';
+  const expPct=(day/dIM)*100;
+  document.getElementById('avbProgFill').style.background = achieve>=expPct?'#10B981':achieve>=expPct*0.85?'#F59E0B':'#EF4444';
+
+  document.getElementById('avbTblMonth').textContent = `${MONTHS_ID2[mo]} ${yr}`;
+  const bSoFar=bpd*day, fSoFar=fpd*day;
+  const pct1=bSoFar>0?((bSoFar-actualSoFar)/bSoFar*100):0;
+  const proj=actualSoFar+(fpd*(dIM-day));
+  const pct2=budget>0?((budget-proj)/budget*100):0;
+
+  document.getElementById('avbTblBody').innerHTML=`
+    <tr class="alt"><td>As of ${day} ${MONTHS_ID2[mo]} ${yr}</td>
+      <td class="r">${rpFmt(bSoFar)}</td><td class="r">${rpFmt(fSoFar)}</td>
+      <td class="r" style="font-weight:600">${rpFmt(actualSoFar)}</td>
+      <td class="r">${pctFmt(pct1)}</td></tr>
+    <tr class="tot"><td>${dIM} ${MONTHS_ID2[mo]} ${yr}</td>
+      <td class="r">${rpFmt(budget)}</td><td class="r">${rpFmt(forecast)}</td>
+      <td class="r">${rpFmt(proj)}</td><td class="r">${pctFmt(pct2)}</td></tr>`;
+
+  // Store for PDF/Excel
+  window._avbCurDay=day; window._avbCurMo=mo; window._avbCurYr=yr;
+  window._avbCurActual=actualSoFar; window._avbCurBfRow=bfCur;
+}
+
+// Load AvB untuk bulan spesifik
+async function loadAvbForMonth(ym) {
+  const bf=window._avbBf; const ds=window._avbDs;
+  if(!bf||!ds) return;
+  const [y,m]=ym.split('-');
+  const mo=parseInt(m)-1, yr=parseInt(y);
+  const bfRow=bf.find(b=>b.month===ym);
+  if(!bfRow) return;
+  const actualMonth=ds.filter(r=>r.report_date.slice(0,7)===ym).reduce((a,r)=>a+parseFloat(r.total_revenue||0),0);
+  const budget=parseFloat(bfRow.budget), forecast=parseFloat(bfRow.forecast);
+  const dIM=new Date(yr,mo+1,0).getDate();
+  const MONTHS_ID2=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const lastDay=ds.filter(r=>r.report_date.slice(0,7)===ym).length>0
+    ? parseInt(ds.filter(r=>r.report_date.slice(0,7)===ym).slice(-1)[0].report_date.split('-')[2])
+    : dIM;
+
+  document.getElementById('avbSubtitle').textContent=`Data ${MONTHS_ID2[mo]} ${yr}`;
+  document.getElementById('avbBudget').textContent=rpFmt(budget);
+  document.getElementById('avbForecast').textContent=rpFmt(forecast);
+  document.getElementById('avbActual').textContent=rpFmt(actualMonth);
+  document.getElementById('avbBudgetSub').textContent=`Target ${MONTHS_ID2[mo]} ${yr}`;
+  document.getElementById('avbForecastSub').textContent=`Forecast ${MONTHS_ID2[mo]} ${yr}`;
+  document.getElementById('avbActualSub').textContent=`Total ${MONTHS_ID2[mo]} ${yr}`;
+  const achieve=budget>0?(actualMonth/budget*100):0;
+  document.getElementById('avbAchieve').textContent=achieve.toFixed(2)+'%';
+  document.getElementById('avbProgTitle').textContent=`Progress Budget ${MONTHS_ID2[mo]} ${yr}`;
+  document.getElementById('avbProgBadge').textContent=`${lastDay} dari ${dIM} hari`;
+  document.getElementById('avbProgLabel').textContent=`${achieve.toFixed(2)}% tercapai dari ${rpFmt(budget)}`;
+  document.getElementById('avbProgFill').style.width=Math.min(achieve,100)+'%';
+  document.getElementById('avbProgFill').style.background=achieve>=100?'#10B981':achieve>=85?'#F59E0B':'#EF4444';
+  document.getElementById('avbTblMonth').textContent=`${MONTHS_ID2[mo]} ${yr}`;
+  const fpd=parseFloat(bfRow.forecast_per_day);
+  const proj=actualMonth+(fpd*(dIM-lastDay));
+  const pct1=budget>0?((budget-actualMonth)/budget*100):0;
+  const pct2=budget>0?((budget-proj)/budget*100):0;
+  const isPast=ym<(new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0'));
+
+  document.getElementById('avbTblBody').innerHTML=`
+    <tr class="alt"><td>As of ${lastDay} ${MONTHS_ID2[mo]} ${yr}</td>
+      <td class="r">${rpFmt(parseFloat(bfRow.budget_per_day)*lastDay)}</td>
+      <td class="r">${rpFmt(fpd*lastDay)}</td>
+      <td class="r" style="font-weight:600">${rpFmt(actualMonth)}</td>
+      <td class="r">${pctFmt(pct1)}</td></tr>
+    <tr class="tot"><td>${dIM} ${MONTHS_ID2[mo]} ${yr}</td>
+      <td class="r">${rpFmt(budget)}</td><td class="r">${rpFmt(forecast)}</td>
+      <td class="r">${isPast?rpFmt(actualMonth):rpFmt(proj)}</td>
+      <td class="r">${isPast?pctFmt(pct1):pctFmt(pct2)}</td></tr>`;
+
+  window._avbCurDay=lastDay; window._avbCurMo=mo; window._avbCurYr=yr;
+  window._avbCurActual=actualMonth; window._avbCurBfRow=bfRow;
 }
 
 // ── AVB EXCEL ───────────────────────────────────────
