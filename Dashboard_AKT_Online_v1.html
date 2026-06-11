@@ -17,7 +17,7 @@
   --text:#0F172A;--text2:#475569;--text3:#94A3B8;--r:10px;--r2:6px;
 }
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh}
-.hdr{background:linear-gradient(135deg,#EFF6FF 0%,#DBEAFE 100%);border-bottom:1px solid #BFDBFE;height:72px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;padding:0 24px;gap:16px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(59,130,246,0.1)}
+.hdr{background:linear-gradient(135deg,#EFF6FF 0%,#DBEAFE 100%);border-bottom:1px solid #BFDBFE;height:72px;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(59,130,246,0.1)}
 .hdr-left{display:flex;align-items:center;flex-shrink:0}
 .hdr-logo{height:40px;object-fit:contain}
 .hdr-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
@@ -40,6 +40,28 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
 .sk-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px}
 .error-pg{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 68px);gap:12px;text-align:center;padding:2rem}
 .error-pg .icon{font-size:48px}
+.page-nav{display:flex;gap:2px;background:rgba(27,43,75,0.06);border-radius:20px;padding:2px;border:1px solid #BFDBFE}
+.page-btn{padding:5px 16px;font-size:11px;font-weight:600;border-radius:18px;border:none;cursor:pointer;transition:all 0.15s;letter-spacing:0.01em}
+.page-btn.active{background:#1B2B4B;color:#fff}
+.page-btn.inactive{background:transparent;color:#1B2B4B}
+.page-btn.inactive:hover{background:rgba(27,43,75,0.08)}
+.avb-main{display:none;padding:16px 20px}
+.avb-g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:10px}
+.avb-prog{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.prog-bar-wrap{width:100%;height:8px;background:#E2E8F0;border-radius:4px;overflow:hidden;margin:6px 0 4px}
+.prog-bar-fill{height:100%;border-radius:4px;background:var(--amber);transition:width 0.5s ease}
+.avb-tbl-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.avb-tbl{width:100%;border-collapse:collapse;font-size:11px}
+.avb-tbl th{background:#1B2B4B;color:#fff;padding:6px 10px;text-align:left;font-size:10px;font-weight:600}
+.avb-tbl th.r,.avb-tbl td.r{text-align:right}
+.avb-tbl td{padding:6px 10px;border-bottom:0.5px solid var(--border);color:var(--text)}
+.avb-tbl tr.alt td{background:var(--surface2)}
+.avb-tbl tr.tot td{background:#DBEAFE;font-weight:600}
+.avb-tbl tr.cur td{background:#FFFBEB}
+.status-badge{font-size:9px;padding:2px 8px;border-radius:10px;font-weight:600}
+.sb-below{background:#FEE2E2;color:#991B1B}
+.sb-above{background:#DCFCE7;color:#166534}
+.sb-track{background:#FEF3C7;color:#92400E}
 .error-pg h2{font-size:18px;color:var(--navy)}
 .error-pg p{font-size:13px;color:var(--text2);max-width:400px}
 .no-data-pg{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 68px);gap:12px;text-align:center}
@@ -132,12 +154,18 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
     <span class="hdr-title">Daily QRIS Transaction Dashboard — AKT</span>
     <span class="hdr-date-sub" id="hdrDateSub">Memuat data...</span>
   </div>
+  <div class="hdr-center-nav" style="display:flex;align-items:center;justify-content:center">
+    <div class="page-nav">
+      <button class="page-btn active" id="btnRekon" onclick="switchPage('rekon')">Rekonsiliasi</button>
+      <button class="page-btn inactive" id="btnAvb" onclick="switchPage('avb')">Actual vs Budget</button>
+    </div>
+  </div>
   <div class="hdr-right">
-    <div class="mode-toggle">
+    <div class="mode-toggle" id="modeToggleWrap">
       <button class="tog-btn tog-active" id="togDaily" onclick="setMode('daily')">Daily</button>
       <button class="tog-btn tog-inactive" id="togMonthly" onclick="setMode('monthly')">Monthly</button>
     </div>
-    <div style="position:relative">
+    <div style="position:relative" id="calWrap">
       <button class="btn btn-ghost" id="calTrigger" onclick="toggleCal(event)">
         <span id="calLabel">📅 Pilih Tanggal</span>
         <span style="margin-left:4px;font-size:10px">▾</span>
@@ -268,11 +296,258 @@ select.date-select{padding:6px 12px;border-radius:var(--r2);border:1px solid #BF
   <div class="footer" id="footer"></div>
 </div>
 
+<!-- ACTUAL VS BUDGET PAGE -->
+<div class="avb-main" id="avbMain">
+  <div class="dash-header">
+    <h1>Actual vs Budget — <span style="color:var(--blue)">AKT</span></h1>
+    <p id="avbSubtitle">—</p>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="avb-g4" id="avbKpiCards">
+    <div class="kpi"><div class="lbl">Budget</div><div class="val navy" id="avbBudget">—</div><div class="sub" id="avbBudgetSub">—</div></div>
+    <div class="kpi"><div class="lbl">Forecast</div><div class="val navy" id="avbForecast">—</div><div class="sub" id="avbForecastSub">—</div></div>
+    <div class="kpi"><div class="lbl">Actual MTD</div><div class="val navy" id="avbActual">—</div><div class="sub" id="avbActualSub">—</div></div>
+    <div class="kpi"><div class="lbl">Achievement</div><div class="val amber" id="avbAchieve">—</div><div class="sub" id="avbAchieveSub">dari budget full bulan</div></div>
+  </div>
+
+  <!-- Progress Bar -->
+  <div class="avb-prog">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <span style="font-size:11px;font-weight:600;color:var(--navy)" id="avbProgTitle">Progress Budget</span>
+      <span class="status-badge sb-track" id="avbProgBadge">—</span>
+    </div>
+    <div style="display:flex;justify-content:flex-end;font-size:10px;color:var(--text2);margin-bottom:2px">
+      <span id="avbProgLabel">—</span>
+    </div>
+    <div class="prog-bar-wrap">
+      <div class="prog-bar-fill" id="avbProgFill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- Tabel Actual vs Budget -->
+  <div class="avb-tbl-wrap">
+    <div class="card-hd">Actual vs Budget — <span id="avbTblMonth">—</span></div>
+    <table class="avb-tbl">
+      <thead>
+        <tr>
+          <th style="width:28%">Keterangan</th>
+          <th class="r">Budget</th>
+          <th class="r">Forecast</th>
+          <th class="r">Actual</th>
+          <th class="r" style="width:14%">Below/Above</th>
+        </tr>
+      </thead>
+      <tbody id="avbTblBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Monthly Summary -->
+  <div class="avb-tbl-wrap">
+    <div class="card-hd">Monthly Summary — Actual vs Budget 2026</div>
+    <table class="avb-tbl">
+      <thead>
+        <tr>
+          <th style="width:16%">Bulan</th>
+          <th class="r">Budget</th>
+          <th class="r">Forecast</th>
+          <th class="r">Actual / Projected</th>
+          <th class="r" style="width:14%">Below/Above</th>
+          <th class="r" style="width:13%">Status</th>
+        </tr>
+      </thead>
+      <tbody id="avbMonthlyBody"></tbody>
+    </table>
+  </div>
+</div>
+
 <script>
 // ============================================================
 // KONFIGURASI — ganti dengan nilai dari Supabase kamu
 // ============================================================
 const SUPABASE_URL = 'https://cjwxonoeszokjepkttnd.supabase.co';
+
+// ── PAGE SWITCHING ──────────────────────────────────
+let currentPage = 'rekon';
+
+function switchPage(page) {
+  currentPage = page;
+  document.getElementById('btnRekon').className = 'page-btn ' + (page==='rekon' ? 'active':'inactive');
+  document.getElementById('btnAvb').className   = 'page-btn ' + (page==='avb'   ? 'active':'inactive');
+
+  if (page === 'rekon') {
+    // Show rekon elements
+    document.getElementById('avbMain').style.display = 'none';
+    const mainDash = document.getElementById('mainDash');
+    if (mainDash.style.display !== 'none' || window._lastData) {
+      show('mainDash');
+    }
+    // Show toggle & calendar
+    document.getElementById('modeToggleWrap').style.display = 'flex';
+    document.getElementById('calWrap').style.display = 'block';
+  } else {
+    // Show AvB page
+    document.getElementById('mainDash').style.display = 'none';
+    document.getElementById('loadingPg').style.display = 'none';
+    document.getElementById('avbMain').style.display = 'block';
+    // Hide toggle & calendar, show month picker instead
+    document.getElementById('modeToggleWrap').style.display = 'none';
+    document.getElementById('calWrap').style.display = 'none';
+    loadAvb();
+  }
+}
+
+// ── ACTUAL VS BUDGET ────────────────────────────────
+const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
+
+function rpFmt(v) {
+  if (!v && v!==0) return '—';
+  return 'Rp ' + Math.round(v).toLocaleString('id-ID');
+}
+function pctFmt(v) {
+  if (!v && v!==0) return '—';
+  return Math.abs(v).toFixed(2) + '%';
+}
+
+async function loadAvb() {
+  try {
+    // Ambil semua budget_forecast
+    const bf = await supabaseFetch('budget_forecast', 'order=month.asc');
+    // Ambil semua actual dari daily_summary (SUM per bulan)
+    const ds = await supabaseFetch('daily_summary', 'select=report_date,total_revenue&order=report_date.asc&limit=500');
+
+    // Group actual per bulan
+    const actualByMonth = {};
+    ds.forEach(r => {
+      const ym = r.report_date.slice(0,7);
+      if (!actualByMonth[ym]) actualByMonth[ym] = 0;
+      actualByMonth[ym] += parseFloat(r.total_revenue||0);
+    });
+
+    // Cari bulan berjalan
+    const now = new Date();
+    const curYM = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+    const curDay = now.getDate();
+
+    // Update subtitle
+    const mo = now.getMonth();
+    const yr = now.getFullYear();
+    document.getElementById('avbSubtitle').textContent = `Data per ${curDay} ${MONTHS_ID[mo]} ${yr}`;
+
+    // Cari data bulan ini
+    const bfCur = bf.find(b => b.month === curYM);
+    const actualMtd = actualByMonth[curYM] || 0;
+
+    if (bfCur) {
+      const budget   = parseFloat(bfCur.budget);
+      const forecast = parseFloat(bfCur.forecast);
+      const bpd      = parseFloat(bfCur.budget_per_day);
+      const fpd      = parseFloat(bfCur.forecast_per_day);
+
+      // KPI Cards
+      document.getElementById('avbBudget').textContent   = rpFmt(budget);
+      document.getElementById('avbForecast').textContent = rpFmt(forecast);
+      document.getElementById('avbActual').textContent   = rpFmt(actualMtd);
+      document.getElementById('avbBudgetSub').textContent   = `Target ${MONTHS_ID[mo]} ${yr}`;
+      document.getElementById('avbForecastSub').textContent = `Forecast ${MONTHS_ID[mo]} ${yr}`;
+      document.getElementById('avbActualSub').textContent   = `s.d. ${curDay} ${MONTHS_ID[mo]} ${yr}`;
+      const achieve = budget > 0 ? (actualMtd/budget*100) : 0;
+      document.getElementById('avbAchieve').textContent = achieve.toFixed(2) + '%';
+
+      // Progress bar
+      const daysInMonth = new Date(yr, mo+1, 0).getDate();
+      document.getElementById('avbProgTitle').textContent = `Progress Budget ${MONTHS_ID[mo]} ${yr}`;
+      document.getElementById('avbProgBadge').textContent = `${curDay} dari ${daysInMonth} hari berjalan`;
+      document.getElementById('avbProgLabel').textContent = `${achieve.toFixed(2)}% tercapai dari ${rpFmt(budget)}`;
+      document.getElementById('avbProgFill').style.width = Math.min(achieve,100) + '%';
+      // Warna progress
+      const pct = achieve;
+      const expPct = (curDay/daysInMonth)*100;
+      document.getElementById('avbProgFill').style.background =
+        pct >= expPct ? '#10B981' : pct >= expPct*0.85 ? '#F59E0B' : '#EF4444';
+
+      // Tabel row 1 & 2
+      document.getElementById('avbTblMonth').textContent = `${MONTHS_ID[mo]} ${yr}`;
+      const budgetSoFar = bpd * curDay;
+      const forecastSoFar = fpd * curDay;
+      const pct1 = budget > 0 ? ((budgetSoFar - actualMtd)/budget*100) : 0;
+
+      // Projected full month = actual + sisa hari pakai forecast
+      const remainDays = daysInMonth - curDay;
+      const projected = actualMtd + (fpd * remainDays);
+      const pct2 = budget > 0 ? ((budget - projected)/budget*100) : 0;
+
+      document.getElementById('avbTblBody').innerHTML = `
+        <tr class="alt">
+          <td>As of ${curDay} ${MONTHS_ID[mo]} ${yr}</td>
+          <td class="r">${rpFmt(budgetSoFar)}</td>
+          <td class="r">${rpFmt(forecastSoFar)}</td>
+          <td class="r" style="font-weight:600">${rpFmt(actualMtd)}</td>
+          <td class="r">${pctFmt(pct1)}</td>
+        </tr>
+        <tr class="tot">
+          <td>${daysInMonth} ${MONTHS_ID[mo]} ${yr}</td>
+          <td class="r">${rpFmt(budget)}</td>
+          <td class="r">${rpFmt(forecast)}</td>
+          <td class="r">${rpFmt(projected)}</td>
+          <td class="r">${pctFmt(pct2)}</td>
+        </tr>`;
+    }
+
+    // Monthly Summary
+    const tbody = document.getElementById('avbMonthlyBody');
+    tbody.innerHTML = '';
+    bf.forEach(b => {
+      const ym     = b.month;
+      const [y,m]  = ym.split('-');
+      const mIdx   = parseInt(m)-1;
+      const budget = parseFloat(b.budget);
+      const fore   = parseFloat(b.forecast);
+      const actual = actualByMonth[ym] || 0;
+      const isCur  = ym === curYM;
+      const isPast = ym < curYM;
+
+      let actualDisp, pct, statusHtml, rowClass;
+
+      if (isPast) {
+        actualDisp = rpFmt(actual);
+        pct = budget > 0 ? ((budget-actual)/budget*100) : 0;
+        const isAbove = actual >= budget;
+        statusHtml = isAbove
+          ? '<span class="status-badge sb-above">Above</span>'
+          : '<span class="status-badge sb-below">Below</span>';
+        rowClass = '';
+      } else if (isCur) {
+        const dIM = new Date(parseInt(y), mIdx+1, 0).getDate();
+        const projected = actual + (parseFloat(b.forecast_per_day) * (dIM - curDay));
+        actualDisp = rpFmt(projected);
+        pct = budget > 0 ? ((budget-projected)/budget*100) : 0;
+        statusHtml = '<span class="status-badge sb-track">Berjalan</span>';
+        rowClass = 'cur';
+      } else {
+        actualDisp = '—';
+        pct = null;
+        statusHtml = '<span class="status-badge" style="background:var(--surface2);color:var(--text3)">Belum</span>';
+        rowClass = '';
+      }
+
+      const tr = document.createElement('tr');
+      if (rowClass) tr.className = rowClass;
+      tr.innerHTML = `
+        <td>${isCur ? '<strong>'+MONTHS_ID[mIdx]+' '+y+'</strong>' : MONTHS_ID[mIdx]+' '+y}</td>
+        <td class="r">${rpFmt(budget)}</td>
+        <td class="r">${rpFmt(fore)}</td>
+        <td class="r">${actualDisp}</td>
+        <td class="r">${pct !== null ? pctFmt(pct) : '—'}</td>
+        <td class="r">${statusHtml}</td>`;
+      tbody.appendChild(tr);
+    });
+
+  } catch(e) {
+    console.error('loadAvb error:', e);
+  }
+}
 
 // ── MODE ────────────────────────────────────────────
 let currentMode = 'daily';   // 'daily' | 'monthly'
