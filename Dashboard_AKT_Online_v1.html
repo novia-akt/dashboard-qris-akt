@@ -1770,11 +1770,11 @@ function addAvbPagesToDoc(doc) {
     doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
     doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
     doc.text('Bulan', M+2, y+1);
-    doc.text('Budget', M+60, y+1, {align:'right'});
-    doc.text('Forecast', M+100, y+1, {align:'right'});
-    doc.text('Actual/Projected', M+148, y+1, {align:'right'});
+    doc.text('Budget', M+70, y+1, {align:'right'});
+    doc.text('Forecast', M+106, y+1, {align:'right'});
+    doc.text('Actual/Projected', M+146, y+1, {align:'right'});
     doc.text('Below/Above', M+170, y+1, {align:'right'});
-    doc.text('Status', M+178, y+1, {align:'right'});
+    doc.text('Status', M+196, y+1, {align:'right'});
     y += 6;
 
     bf.forEach((b2,i) => {
@@ -1802,11 +1802,11 @@ function addAvbPagesToDoc(doc) {
       doc.rect(M, y-3, W-M*2, 6, 'F');
       doc.setTextColor(15,23,42); doc.setFont('helvetica', isCur2?'bold':'normal'); doc.setFontSize(7);
       doc.text(MONTHS_ID2[mIdx2]+' '+y2, M+2, y+1);
-      doc.text('Rp '+Math.round(bud2).toLocaleString('id-ID'), M+60, y+1, {align:'right'});
-      doc.text('Rp '+Math.round(fore2).toLocaleString('id-ID'), M+100, y+1, {align:'right'});
-      doc.text(dispAct?'Rp '+Math.round(dispAct).toLocaleString('id-ID'):'—', M+148, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(bud2).toLocaleString('id-ID'), M+70, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(fore2).toLocaleString('id-ID'), M+106, y+1, {align:'right'});
+      doc.text(dispAct?'Rp '+Math.round(dispAct).toLocaleString('id-ID'):'—', M+146, y+1, {align:'right'});
       doc.text(pctTxt, M+170, y+1, {align:'right'});
-      doc.text(statTxt, M+178, y+1, {align:'right'});
+      doc.text(statTxt, M+196, y+1, {align:'right'});
       y += 6;
     });
   }
@@ -1910,11 +1910,11 @@ function dlAvbPDF() {
     doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
     doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
     doc.text('Bulan', M+2, y+1);
-    doc.text('Budget', M+60, y+1, {align:'right'});
-    doc.text('Forecast', M+100, y+1, {align:'right'});
-    doc.text('Actual/Projected', M+148, y+1, {align:'right'});
+    doc.text('Budget', M+70, y+1, {align:'right'});
+    doc.text('Forecast', M+106, y+1, {align:'right'});
+    doc.text('Actual/Projected', M+146, y+1, {align:'right'});
     doc.text('Below/Above', M+170, y+1, {align:'right'});
-    doc.text('Status', M+178, y+1, {align:'right'});
+    doc.text('Status', M+196, y+1, {align:'right'});
     y += 6;
 
     bf.forEach((b2,i) => {
@@ -1942,11 +1942,11 @@ function dlAvbPDF() {
       doc.rect(M, y-3, W-M*2, 6, 'F');
       doc.setTextColor(15,23,42); doc.setFont('helvetica', isCur2?'bold':'normal'); doc.setFontSize(7);
       doc.text(MONTHS_ID2[mIdx2]+' '+y2, M+2, y+1);
-      doc.text('Rp '+Math.round(bud2).toLocaleString('id-ID'), M+60, y+1, {align:'right'});
-      doc.text('Rp '+Math.round(fore2).toLocaleString('id-ID'), M+100, y+1, {align:'right'});
-      doc.text(dispAct?'Rp '+Math.round(dispAct).toLocaleString('id-ID'):'—', M+148, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(bud2).toLocaleString('id-ID'), M+70, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(fore2).toLocaleString('id-ID'), M+106, y+1, {align:'right'});
+      doc.text(dispAct?'Rp '+Math.round(dispAct).toLocaleString('id-ID'):'—', M+146, y+1, {align:'right'});
       doc.text(pctTxt, M+170, y+1, {align:'right'});
-      doc.text(statTxt, M+178, y+1, {align:'right'});
+      doc.text(statTxt, M+196, y+1, {align:'right'});
       y += 6;
     });
   }
