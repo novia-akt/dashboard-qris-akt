@@ -1106,7 +1106,7 @@ function dlPDF() {
     y += 10;
   }
 
-  // Settlement Summary
+  // Settlement Summary — dihapus dari PDF, hanya tampil di dashboard
   if (y > 200) { doc.addPage(); y = 20; }
   const mdr   = Math.abs(s.total_mdr||0);
   const cb    = Math.abs(s.total_chargeback||0);
@@ -1114,38 +1114,6 @@ function dlPDF() {
   const disp  = Math.abs(s.total_dispute||0);
   const trf   = Math.abs(s.total_transfer_fee||0);
   const amt   = Math.abs(s.total_amount_transfer||0);
-
-  doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
-  doc.text('Settlement Summary — QOIN', M, y); y += 5;
-  doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
-  doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
-  doc.text('Description', M+2, y+1);
-  doc.text('Amount', M+178, y+1, {align:'right'});
-  y += 6;
-
-  const settleRows = [
-    ['Jumlah Merchant', numFmt(s.total_merchant)+' Merchant', false, false],
-    ['Total Trx', numFmt(s.total_trx_success)+' Transaksi', false, false],
-    ['Amount Trx', rpFull(s.gmv), false, false],
-    ['MDR', '-'+rpFull(mdr), true, false],
-    ['Chargeback', cb?('-'+rpFull(cb)):'—', true, false],
-    ['Representment', rep?rpFull(rep):'—', false, false],
-    ['Settle Dispute', disp?('-'+rpFull(disp)):'—', true, false],
-    ['Settled Amount', rpFull(s.settled_amount), false, true],
-    ['Biaya Transfer Antar Bank', '-'+rpFull(trf), true, false],
-    ['*Amount Transfer to Merchant', rpFull(amt), false, true],
-  ];
-  settleRows.forEach(([desc, val, isRed, isBold], i) => {
-    if (isBold) doc.setFillColor(189,215,238);
-    else doc.setFillColor(i%2===0?248:255, i%2===0?250:255, i%2===0?252:255);
-    doc.rect(M, y-3, W-M*2, 6, 'F');
-    doc.setTextColor(isRed?180:15, isRed?0:23, isRed?0:42);
-    doc.setFont('helvetica', isBold?'bold':'normal'); doc.setFontSize(7);
-    doc.text(desc, M+2, y+1);
-    doc.text(val, M+178, y+1, {align:'right'});
-    y += 6;
-  });
-  y += 6;
 
   // Daily Report MTD/YTD
   const mtd = window._lastMtd || {};
@@ -1237,6 +1205,9 @@ function dlPDF() {
   doc.setFillColor(27,43,75); doc.rect(0,lastY,W,13,'F');
   doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','normal');
   doc.text(`Auto-generated dashboard — Paycloud × AKT — ${dateStr}`, W/2, lastY+8, {align:'center'});
+
+  // Tambahkan halaman Actual vs Budget di akhir (jika data tersedia)
+  addAvbPagesToDoc(doc);
 
   doc.save(`Daily_QRIS_Dashboard_AKT_${s.report_date.replace(/-/g,'')}.pdf`);
 }
@@ -1702,6 +1673,150 @@ function dlAvbExcel() {
 }
 
 // ── AVB PDF ──────────────────────────────────────────
+
+// ── ADD AVB SECTION TO EXISTING PDF DOC (untuk gabungan dengan Rekon PDF) ──
+function addAvbPagesToDoc(doc) {
+  const bf = window._avbBf;
+  const ds = window._avbDs;
+  const actualByMonth = window._avbActual;
+  if (!bf || !ds || !actualByMonth) return; // data AvB belum tersedia, skip
+
+  const W=210, M=14;
+  const now = new Date();
+  const curYM = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0');
+  const dsThisMonth = ds.filter(r => r.report_date.slice(0,7) === curYM);
+  const lastISO = dsThisMonth.length > 0 ? dsThisMonth[dsThisMonth.length-1].report_date : null;
+  const curDay = lastISO ? parseInt(lastISO.split('-')[2]) : now.getDate();
+  const mo = now.getMonth();
+  const yr = now.getFullYear();
+  const MONTHS_ID2 = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const bfCur = bf.find(b => b.month === curYM);
+
+  // Halaman baru untuk section AvB
+  doc.addPage();
+  let y = 0;
+
+  // Header
+  doc.setFillColor(27,43,75); doc.rect(0,0,W,24,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(13); doc.setFont('helvetica','bold');
+  doc.text('Actual vs Budget — AKT', W/2, 11, {align:'center'});
+  doc.setFontSize(8); doc.setFont('helvetica','normal');
+  doc.text(`Data per ${curDay} ${MONTHS_ID2[mo]} ${yr}`, W/2, 18, {align:'center'});
+  y = 32;
+
+  if (bfCur) {
+    const budget = parseFloat(bfCur.budget);
+    const bpd    = parseFloat(bfCur.budget_per_day);
+    const fpd    = parseFloat(bfCur.forecast_per_day);
+    const actual = actualByMonth[curYM] || 0;
+    const dIM    = new Date(yr, mo+1, 0).getDate();
+    const achieve = budget > 0 ? (actual/budget*100) : 0;
+
+    // KPI row
+    const kpis = [
+      ['Budget', `Rp ${Math.round(budget).toLocaleString('id-ID')}`],
+      ['Forecast', `Rp ${Math.round(parseFloat(bfCur.forecast)).toLocaleString('id-ID')}`],
+      ['Actual MTD', `Rp ${Math.round(actual).toLocaleString('id-ID')}`],
+      ['Achievement', achieve.toFixed(2)+'%'],
+    ];
+    const kW = (W-M*2)/4;
+    kpis.forEach(([lbl,val],i) => {
+      const x = M + i*kW;
+      doc.setFillColor(239,246,255); doc.rect(x, y-3, kW-2, 16, 'F');
+      doc.setTextColor(100,116,139); doc.setFontSize(7); doc.setFont('helvetica','normal');
+      doc.text(lbl.toUpperCase(), x+2, y+2);
+      doc.setTextColor(27,43,75); doc.setFontSize(9); doc.setFont('helvetica','bold');
+      doc.text(val, x+2, y+10);
+    });
+    y += 22;
+
+    // Tabel AvB
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+    doc.text(`Actual vs Budget — ${MONTHS_ID2[mo]} ${yr}`, M, y); y += 5;
+    doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('Keterangan', M+2, y+1);
+    doc.text('Budget', M+70, y+1, {align:'right'});
+    doc.text('Forecast', M+110, y+1, {align:'right'});
+    doc.text('Actual', M+150, y+1, {align:'right'});
+    doc.text('Below/Above', M+178, y+1, {align:'right'});
+    y += 6;
+
+    const bSoFar = bpd * curDay;
+    const fSoFar = fpd * curDay;
+    const pct1   = bSoFar > 0 ? ((bSoFar - actual)/bSoFar*100) : 0;
+    const proj   = actual + (fpd * (dIM - curDay));
+    const pct2   = budget > 0 ? ((budget - proj)/budget*100) : 0;
+    const avbRows = [
+      [`As of ${curDay} ${MONTHS_ID2[mo]} ${yr}`, bSoFar, fSoFar, actual, pct1.toFixed(2)+'%'],
+      [`${dIM} ${MONTHS_ID2[mo]} ${yr}`, budget, parseFloat(bfCur.forecast), proj, pct2.toFixed(2)+'%'],
+    ];
+    avbRows.forEach(([k,b,f,a,p], i) => {
+      if (i===1) doc.setFillColor(189,215,238); else doc.setFillColor(i%2===0?248:255,i%2===0?250:255,i%2===0?252:255);
+      doc.rect(M, y-3, W-M*2, 6, 'F');
+      doc.setTextColor(15,23,42); doc.setFont('helvetica', i===1?'bold':'normal'); doc.setFontSize(7);
+      doc.text(k, M+2, y+1);
+      doc.text('Rp '+Math.round(b).toLocaleString('id-ID'), M+70, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(f).toLocaleString('id-ID'), M+110, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(a).toLocaleString('id-ID'), M+150, y+1, {align:'right'});
+      doc.text(p, M+178, y+1, {align:'right'});
+      y += 6;
+    });
+    y += 8;
+
+    // Monthly Summary
+    doc.setFontSize(8); doc.setFont('helvetica','bold'); doc.setTextColor(15,23,42);
+    doc.text('Monthly Summary — Actual vs Budget 2026', M, y); y += 5;
+    doc.setFillColor(27,43,75); doc.rect(M, y-3, W-M*2, 6, 'F');
+    doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','bold');
+    doc.text('Bulan', M+2, y+1);
+    doc.text('Budget', M+60, y+1, {align:'right'});
+    doc.text('Forecast', M+100, y+1, {align:'right'});
+    doc.text('Actual/Projected', M+148, y+1, {align:'right'});
+    doc.text('Below/Above', M+170, y+1, {align:'right'});
+    doc.text('Status', M+178, y+1, {align:'right'});
+    y += 6;
+
+    bf.forEach((b2,i) => {
+      const ym2    = b2.month;
+      const [y2,m2] = ym2.split('-');
+      const mIdx2  = parseInt(m2)-1;
+      const bud2   = parseFloat(b2.budget);
+      const fore2  = parseFloat(b2.forecast);
+      const act2   = actualByMonth[ym2] || 0;
+      const isCur2 = ym2 === curYM;
+      const isPast2 = ym2 < curYM;
+      let dispAct, pctTxt, statTxt;
+      if (isPast2) {
+        dispAct = act2; pctTxt = bud2>0?((bud2-act2)/bud2*100).toFixed(2)+'%':'—';
+        statTxt = act2>=bud2?'Above':'Below';
+      } else if (isCur2) {
+        const dIM2 = new Date(parseInt(y2), mIdx2+1, 0).getDate();
+        const pr2 = act2 + (parseFloat(b2.forecast_per_day)*(dIM2-curDay));
+        dispAct = pr2; pctTxt = bud2>0?((bud2-pr2)/bud2*100).toFixed(2)+'%':'—';
+        statTxt = 'Berjalan';
+      } else { dispAct=0; pctTxt='—'; statTxt='Belum'; }
+
+      if (y > 270) { doc.addPage(); y=20; }
+      doc.setFillColor(isCur2?255:i%2===0?248:255, isCur2?251:i%2===0?250:255, isCur2?235:i%2===0?252:255);
+      doc.rect(M, y-3, W-M*2, 6, 'F');
+      doc.setTextColor(15,23,42); doc.setFont('helvetica', isCur2?'bold':'normal'); doc.setFontSize(7);
+      doc.text(MONTHS_ID2[mIdx2]+' '+y2, M+2, y+1);
+      doc.text('Rp '+Math.round(bud2).toLocaleString('id-ID'), M+60, y+1, {align:'right'});
+      doc.text('Rp '+Math.round(fore2).toLocaleString('id-ID'), M+100, y+1, {align:'right'});
+      doc.text(dispAct?'Rp '+Math.round(dispAct).toLocaleString('id-ID'):'—', M+148, y+1, {align:'right'});
+      doc.text(pctTxt, M+170, y+1, {align:'right'});
+      doc.text(statTxt, M+178, y+1, {align:'right'});
+      y += 6;
+    });
+  }
+
+  // Footer untuk halaman AvB
+  doc.setFillColor(27,43,75); doc.rect(0,284,W,13,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7); doc.setFont('helvetica','normal');
+  doc.text(`Auto-generated — Paycloud × AKT — ${curDay} ${MONTHS_ID2[mo]} ${yr}`, W/2, 292, {align:'center'});
+}
+
 function dlAvbPDF() {
   const bf = window._avbBf;
   const ds = window._avbDs;
@@ -1845,6 +1960,7 @@ function dlAvbPDF() {
 
 // Init
 loadDateList();
+loadAvb();  // preload data AvB agar tersedia untuk gabungan PDF
 </script>
 </body>
 </html>
